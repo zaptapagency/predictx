@@ -1,0 +1,59 @@
+name: universalpredict
+services:
+- name: backend
+  github:
+    branch: main
+    repo: yourusername/universalpredict
+    build_command: |
+      pip install -r backend/requirements.txt
+      git clone --depth 1 https://github.com/yourusername/your-lightgbm-repo.git lightgbm-repo
+      if [ -f lightgbm-repo/requirements.txt ]; then pip install -r lightgbm-repo/requirements.txt; fi
+  dockerfile_path: backend/Dockerfile
+  envs:
+  - key: DATABASE_URL
+    value: ${db.connection_uri}
+  - key: REDIS_URL
+    value: ${redis.connection_uri}
+  - key: LIGHTGBM_REPO_PATH
+    value: /app/lightgbm-repo
+  - key: JWT_SECRET_KEY
+    value: ${JWT_SECRET_KEY}
+  - key: DEBUG
+    value: "False"
+  - key: ENVIRONMENT
+    value: production
+  http_port: 8000
+  routes:
+  - path: /api
+    preserve_path_prefix: true
+
+- name: frontend
+  github:
+    branch: main
+    repo: yourusername/universalpredict
+    build_command: cd frontend && npm install && npm run build
+  dockerfile_path: frontend/Dockerfile
+  envs:
+  - key: REACT_APP_API_URL
+    value: https://${APP_DOMAIN}/api
+  http_port: 3000
+  routes:
+  - path: /
+    preserve_path_prefix: true
+
+databases:
+- name: db
+  engine: PG
+  version: "15"
+  production: true
+
+- name: redis
+  engine: REDIS
+  version: "7"
+  production: true
+
+functions:
+- name: auto-deploy
+  github:
+    branch: main
+    repo: yourusername/universalpredict
