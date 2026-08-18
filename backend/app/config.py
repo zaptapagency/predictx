@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     # Stripe (Optional)
     STRIPE_API_KEY: str = ""
     STRIPE_WEBHOOK_SECRET: str = ""
+    STRIPE_PRO_PRICE_ID: str = ""
+    STRIPE_ENTERPRISE_PRICE_ID: str = ""
+
+    # Frontend URL
+    FRONTEND_URL: str = "http://localhost:3000"
 
     # Google OAuth (Optional)
     GOOGLE_OAUTH_CLIENT_ID: str = ""

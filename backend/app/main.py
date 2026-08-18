@@ -5,6 +5,7 @@ import logging
 
 from app.config import settings
 from app.utils import setup_logger
+from app.api import saas_auth, saas_subscriptions, saas_api_keys, saas_user, saas_admin, webhooks
 
 logger = setup_logger(__name__)
 
@@ -27,6 +28,14 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Include routers
+    app.include_router(saas_auth.router)
+    app.include_router(saas_subscriptions.router)
+    app.include_router(saas_api_keys.router)
+    app.include_router(saas_user.router)
+    app.include_router(saas_admin.router)
+    app.include_router(webhooks.router)
+
     # Health check
     @app.get("/health")
     async def health():
@@ -40,7 +49,7 @@ def create_app() -> FastAPI:
     @app.get("/")
     async def root():
         return {
-            "message": "UniversalPredict API",
+            "message": "PredictX SaaS API",
             "version": settings.API_VERSION,
             "docs": "/docs",
         }

@@ -173,3 +173,92 @@ class EmailService:
             subject=f"{usage_type.capitalize()} Limit Warning - PredictX",
             html_content=html_content,
         )
+
+    @staticmethod
+    def send_subscription_canceled_email(user_email: str) -> bool:
+        """Send subscription canceled email"""
+        html_content = """
+        <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h2>Subscription Canceled</h2>
+                    <p>Your subscription has been canceled. You'll remain on the free tier.</p>
+                    <p>If you'd like to reactivate, just visit your <a href="https://predictx.com/settings/billing">billing settings</a>.</p>
+                    <p>We'd love to hear your feedback! Feel free to reply to this email or contact support@predictx.com</p>
+                </div>
+            </body>
+        </html>
+        """
+
+        return EmailService.send_email(
+            to_email=user_email,
+            subject="Subscription Canceled - PredictX",
+            html_content=html_content,
+        )
+
+    @staticmethod
+    def send_invoice_email(user_email: str, invoice_id: str, amount: float) -> bool:
+        """Send invoice email"""
+        html_content = f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h2>Invoice Received</h2>
+                    <p>Your payment of ${amount:.2f} has been processed successfully.</p>
+                    <p><strong>Invoice ID:</strong> {invoice_id}</p>
+                    <p>You can view your invoice and billing history in your <a href="https://predictx.com/settings/billing">billing settings</a>.</p>
+                    <p>Thank you for your business!</p>
+                </div>
+            </body>
+        </html>
+        """
+
+        return EmailService.send_email(
+            to_email=user_email,
+            subject="Invoice Received - PredictX",
+            html_content=html_content,
+        )
+
+    @staticmethod
+    def send_payment_failed_email(user_email: str) -> bool:
+        """Send payment failed email"""
+        html_content = """
+        <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h2>Payment Failed</h2>
+                    <p>We were unable to process your payment. Your subscription may be at risk.</p>
+                    <p>Please update your payment method in your <a href="https://predictx.com/settings/billing">billing settings</a> as soon as possible.</p>
+                    <p>If you need help, contact support@predictx.com</p>
+                </div>
+            </body>
+        </html>
+        """
+
+        return EmailService.send_email(
+            to_email=user_email,
+            subject="Payment Failed - PredictX",
+            html_content=html_content,
+        )
+
+    @staticmethod
+    def send_refund_email(user_email: str) -> bool:
+        """Send refund confirmation email"""
+        html_content = """
+        <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h2>Refund Processed</h2>
+                    <p>A refund has been processed for your account.</p>
+                    <p>The refund should appear in your account within 3-5 business days.</p>
+                    <p>If you have any questions, please contact support@predictx.com</p>
+                </div>
+            </body>
+        </html>
+        """
+
+        return EmailService.send_email(
+            to_email=user_email,
+            subject="Refund Processed - PredictX",
+            html_content=html_content,
+        )
