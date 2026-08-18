@@ -1,12 +1,44 @@
-# Railway auto-deploys from GitHub webhook when it detects new commits
-# This workflow is disabled - manual deployment is not needed
-name: Deploy to Railway (Auto)
+name: Deploy to Railway
 
 on:
-  workflow_dispatch:  # Manual trigger only for reference
+  push:
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
-  info:
+  deploy:
     runs-on: ubuntu-latest
+    
     steps:
-      - run: echo "✅ Railway auto-deploys from webhook. No manual action needed."
+      - uses: actions/checkout@v3
+      
+      - name: Install Railway CLI
+        run: npm i -g @railway/cli
+      
+      - name: Deploy to Railway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+        run: |
+          railway up --detach
+      
+      - name: Run migrations
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+        run: |
+          railway run alembic upgrade head
+      
+      - name: Health check
+        run: |
+          sleep 30
+          curl -f https://${{ secrets.RAILWAY_BACKEND_URL }}/health || exit 1
+      
+      - name: Notify on success
+        if: success()
+        run: echo "✅ Deployment successful!"
+      
+      - name: Notify on failure
+        if: failure()
+        run: echo "❌ Deployment failed!"
+
