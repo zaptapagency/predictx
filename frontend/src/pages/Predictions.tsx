@@ -14,7 +14,7 @@ interface PredictionResult {
 
 const Predictions: React.FC = () => {
   const navigate = useNavigate();
-  const [models, setModels] = useState<string[]>(['house_price', 'churn_prediction', 'fraud_detection']);
+  const models = ['house_price', 'churn_prediction', 'fraud_detection'];
   const [selectedModel, setSelectedModel] = useState('house_price');
   const [inputData, setInputData] = useState<Record<string, number>>({});
   const [result, setResult] = useState<PredictionResult | null>(null);
