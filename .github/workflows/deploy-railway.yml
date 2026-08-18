@@ -1,18 +1,12 @@
-name: Deploy to Railway
+# Railway auto-deploys from GitHub webhook when it detects new commits
+# This workflow is disabled - manual deployment is not needed
+name: Deploy to Railway (Auto)
 
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+  workflow_dispatch:  # Manual trigger only for reference
 
 jobs:
-  deploy:
+  info:
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v3
-
-      - name: Deploy to Railway
-        uses: railway-app/deploy-action@v1
-        with:
-          token: ${{ secrets.RAILWAY_TOKEN }}
+      - run: echo "✅ Railway auto-deploys from webhook. No manual action needed."
