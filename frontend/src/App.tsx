@@ -1,78 +1,61 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import './App.css';
 
+// Public Pages
+import Landing from './pages/Landing';
+import Signup from './pages/Signup';
+import Login from './pages/Login';
+import ForgotPassword from './pages/ForgotPassword';
+import VerifyEmail from './pages/VerifyEmail';
+import ResetPassword from './pages/ResetPassword';
+
+// User Pages
+import Dashboard from './pages/Dashboard';
+import Predictions from './pages/Predictions';
+import Billing from './pages/Billing';
+import APIKeys from './pages/APIKeys';
+import Settings from './pages/Settings';
+
+// Admin Pages
+import AdminDashboard from './pages/AdminDashboard';
+import AdminUsers from './pages/AdminUsers';
+import AdminSubscriptions from './pages/AdminSubscriptions';
+
+// Protected Route Component
+const ProtectedRoute: React.FC<{ element: React.ReactElement }> = ({ element }) => {
+  const token = localStorage.getItem('access_token');
+  return token ? element : <Navigate to="/login" replace />;
+};
+
 const App: React.FC = () => {
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
-
-  const handlePredict = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setLoading(true);
-
-    try {
-      const response = await fetch('http://localhost:8000/health');
-      const data = await response.json();
-      setResult(data);
-    } catch (error) {
-      setResult({ error: String(error) });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <div className="App">
-      <header className="App-header">
-        <h1>UniversalPredict Platform</h1>
-        <p>Make predictions with your LightGBM models</p>
-      </header>
+    <Router>
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/" element={<Landing />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
-      <main>
-        <section className="dashboard">
-          <div className="card">
-            <h2>System Status</h2>
-            <form onSubmit={handlePredict}>
-              <button type="submit" disabled={loading}>
-                {loading ? 'Checking...' : 'Check Health'}
-              </button>
-            </form>
+        {/* User Routes */}
+        <Route path="/dashboard" element={<ProtectedRoute element={<Dashboard />} />} />
+        <Route path="/predictions" element={<ProtectedRoute element={<Predictions />} />} />
+        <Route path="/settings/billing" element={<ProtectedRoute element={<Billing />} />} />
+        <Route path="/settings/api-keys" element={<ProtectedRoute element={<APIKeys />} />} />
+        <Route path="/settings" element={<ProtectedRoute element={<Settings />} />} />
 
-            {result && (
-              <div className="result">
-                <pre>{JSON.stringify(result, null, 2)}</pre>
-              </div>
-            )}
-          </div>
+        {/* Admin Routes */}
+        <Route path="/admin" element={<ProtectedRoute element={<AdminDashboard />} />} />
+        <Route path="/admin/users" element={<ProtectedRoute element={<AdminUsers />} />} />
+        <Route path="/admin/subscriptions" element={<ProtectedRoute element={<AdminSubscriptions />} />} />
 
-          <div className="card">
-            <h2>Make a Prediction</h2>
-            <form>
-              <div className="form-group">
-                <label>Vertical:</label>
-                <select defaultValue="saas">
-                  <option value="saas">SaaS</option>
-                  <option value="retail">Retail</option>
-                  <option value="healthcare">Healthcare</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label>Prediction Type:</label>
-                <input type="text" placeholder="e.g., churn, purchase" />
-              </div>
-
-              <button type="submit">Predict</button>
-            </form>
-          </div>
-
-          <div className="card">
-            <h2>Upload Data</h2>
-            <input type="file" accept=".csv,.xlsx" />
-            <button>Process Batch</button>
-          </div>
-        </section>
-      </main>
-    </div>
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Router>
   );
 };
 
