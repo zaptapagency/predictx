@@ -2,31 +2,21 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "dockerfile",
-    "buildpacks": []
+    "buildCommand": "pip install -r requirements.txt",
+    "startCommand": "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
   },
   "deploy": {
-    "startCommand": "python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT",
     "restartPolicyType": "on_failure",
-    "restartPolicyMaxRetries": 5
-  },
-  "env": {
-    "DATABASE_URL": {
-      "description": "PostgreSQL connection URL"
-    },
-    "REDIS_URL": {
-      "description": "Redis connection URL"
-    },
-    "JWT_SECRET_KEY": {
-      "description": "JWT secret key for authentication"
-    },
-    "LIGHTGBM_REPO_PATH": {
-      "default": "/app/lightgbm-repo"
-    },
-    "DEBUG": {
-      "default": "False"
-    },
-    "ENVIRONMENT": {
-      "default": "production"
+    "restartPolicyMaxRetries": 3,
+    "healthchecks": {
+      "liveness": {
+        "initialDelaySeconds": 30,
+        "periodSeconds": 30,
+        "httpGet": {
+          "path": "/health",
+          "port": 8000
+        }
+      }
     }
   }
 }
