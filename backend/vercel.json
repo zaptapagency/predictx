@@ -1,6 +1,16 @@
 {
-  "framework": "python",
-  "buildCommand": "pip install -r requirements-vercel.txt",
-  "devCommand": "uvicorn app.main:app --host 0.0.0.0 --port 3000"
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/api/index.py"
+    }
+  ]
 }
 
