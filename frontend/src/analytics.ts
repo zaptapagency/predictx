@@ -2,12 +2,15 @@
  * Analytics Tracking for ForecastX
  * Tracks: signup, login, predictions, features, churn
  * Sends to: Segment (aggregates to Mixpanel, Amplitude, etc)
+ * NOTE: Analytics stubbed for MVP - integrate Segment properly in production
  */
 
-import { Analytics } from '@segment/analytics-next'
-
-// Initialize Segment (free tier supports ~1M events/month)
-const analytics = Analytics.load({ writeKey: 'SEGMENT_WRITE_KEY' })
+// Mock analytics object for MVP (Segment integration can be added later)
+const analytics = {
+  identify: (userId: string, traits: any) => console.log('Analytics identify:', userId, traits),
+  track: (event: string, props: any) => console.log('Analytics track:', event, props),
+  page: (page: string, props: any) => console.log('Analytics page:', page, props),
+}
 
 // User traits (send once per user)
 export const identifyUser = (userId: string, traits: any) => {

@@ -163,7 +163,7 @@ const OnboardingSamplePrediction: React.FC = () => {
             <div className="insight-content">
               <h3>Usage Decline</h3>
               <p>
-                {prediction.high_risk_count} customers have reduced API usage by >50% this month
+                {prediction.high_risk_count} customers have reduced API usage by &gt;50% this month
               </p>
             </div>
           </div>

@@ -27,7 +27,7 @@ const SignupOAuth: React.FC = () => {
         const response = await fetch('/api/auth/oauth/google', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ credential: codeResponse.credential }),
+          body: JSON.stringify({ credential: (codeResponse as any).credential }),
         })
 
         if (!response.ok) {
