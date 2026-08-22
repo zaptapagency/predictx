@@ -68,8 +68,9 @@ def create_app() -> FastAPI:
     async def health():
         return {
             "status": "healthy",
-            "version": settings.API_VERSION,
+            "version": "2.0.0-UPDATED",
             "environment": settings.ENVIRONMENT,
+            "message": "Code is deployed!",
         }
 
     # Migration trigger endpoint
