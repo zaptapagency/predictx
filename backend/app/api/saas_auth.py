@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
@@ -125,12 +126,24 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
             raise Exception(f"Token creation failed: {e}")
 
         print(f"[DEBUG] Signup complete for {user.email}")
-        return {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-            "user": {"id": user.id, "email": user.email, "username": user.username, "full_name": user.full_name, "is_verified": True},
-        }
+        return JSONResponse(
+            content={
+                "success": True,
+                "message": "User registered successfully",
+                "user_id": user.id,
+                "api_key": access_token,
+                "tier": "free",
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "token_type": "bearer",
+                "user": {"id": user.id, "email": user.email, "username": user.username, "full_name": user.full_name, "is_verified": True},
+            },
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+            }
+        )
 
     except HTTPException:
         raise
