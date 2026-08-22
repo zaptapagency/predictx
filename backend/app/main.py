@@ -1,5 +1,4 @@
 from fastapi import FastAPI, Depends
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -75,17 +74,8 @@ def create_app() -> FastAPI:
     )
 
     # Custom CORS Middleware - Add headers manually to all responses
+    # This handles CORS for all origins (including GitHub Pages)
     app.add_middleware(ManualCORSMiddleware)
-
-    # FastAPI CORSMiddleware - Proper CORS handling with configuration
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],  # Allow all origins for signup flow
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        max_age=3600,
-    )
 
     # Include routers
     app.include_router(saas_auth.router)
