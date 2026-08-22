@@ -64,21 +64,6 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(user)
 
-        # Create organization
-        organization = Organization(
-            name=f"{request.full_name}'s Organization",
-            slug=request.username,
-            owner_id=user.id,
-            billing_email=request.email,
-        )
-
-        db.add(organization)
-        db.commit()
-
-        # Update user organization
-        user.organization_id = organization.id
-        db.commit()
-
         # Create tokens
         access_token = AuthService.create_access_token({"sub": str(user.id), "email": user.email})
         refresh_token = AuthService.create_refresh_token({"sub": str(user.id)})
