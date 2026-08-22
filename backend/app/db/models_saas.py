@@ -69,7 +69,7 @@ class Organization(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    users = relationship("User", back_populates="organization")
+    users = relationship("User", back_populates="organization", foreign_keys="[User.organization_id]")
     subscriptions = relationship("Subscription", back_populates="organization")
 
 
