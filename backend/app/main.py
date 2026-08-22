@@ -68,10 +68,23 @@ def create_app() -> FastAPI:
     async def health():
         return {
             "status": "healthy",
-            "version": "2.0.0-UPDATED",
+            "version": "3.0.0-LIVE",
             "environment": settings.ENVIRONMENT,
-            "message": "Code is deployed!",
+            "message": "New code is running!",
         }
+
+    # Simple debug endpoint
+    @app.get("/api/debug/version")
+    async def debug_version():
+        return {"version": "3.0.0", "timestamp": "2026-08-22"}
+
+    @app.post("/api/debug/test-db")
+    async def debug_test_db(db: Session = Depends(get_db)):
+        try:
+            result = db.query(User).first()
+            return {"status": "DB connected", "users_exist": result is not None}
+        except Exception as e:
+            return {"status": "DB error", "error": str(e)}
 
     # Migration trigger endpoint
     @app.post("/admin/migrate")
