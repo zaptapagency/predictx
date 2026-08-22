@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - ForecastX</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f7fa;
+      color: #333;
+    }
+    header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    header h1 { font-size: 1.8em; }
+    .user-info { display: flex; gap: 20px; align-items: center; }
+    .logout-btn {
+      background: rgba(255,255,255,0.2);
+      color: white;
+      border: 1px solid white;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .logout-btn:hover { background: rgba(255,255,255,0.3); }
+    .container {
+      max-width: 1200px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+    .welcome-section {
+      background: white;
+      padding: 40px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      margin-bottom: 40px;
+    }
+    .welcome-section h2 { color: #667eea; margin-bottom: 10px; }
+    .welcome-section p { color: #666; margin-bottom: 20px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-top: 30px;
+    }
+    .card {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      text-align: center;
+      transition: all 0.3s;
+    }
+    .card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    }
+    .card-icon { font-size: 3em; margin-bottom: 15px; }
+    .card h3 { color: #667eea; margin-bottom: 10px; }
+    .card p { color: #666; margin-bottom: 20px; }
+    .btn {
+      display: inline-block;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 6px;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(102,126,234,0.3); }
+    .status-bar {
+      background: white;
+      padding: 20px 40px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      border-radius: 8px;
+      margin-bottom: 30px;
+    }
+    .stat { text-align: center; }
+    .stat-value { font-size: 2em; font-weight: bold; color: #667eea; }
+    .stat-label { color: #666; font-size: 0.9em; margin-top: 5px; }
+    .loading { text-align: center; color: #999; padding: 40px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🚀 ForecastX</h1>
+    <div class="user-info">
+      <span>Welcome, <strong id="userEmail"></strong></span>
+      <button class="logout-btn" onclick="handleLogout()">Logout</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="status-bar" id="statusBar">
+      <div class="stat">
+        <div class="stat-value">0</div>
+        <div class="stat-label">Predictions</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">0</div>
+        <div class="stat-label">Playbooks</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">0</div>
+        <div class="stat-label">Data Sources</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">$0</div>
+        <div class="stat-label">ROI Generated</div>
+      </div>
+    </div>
+
+    <div class="welcome-section">
+      <h2>Welcome to ForecastX 👋</h2>
+      <p>Your predictive analytics platform is ready. Get started by exploring the features below:</p>
+
+      <div class="grid">
+        <div class="card">
+          <div class="card-icon">📊</div>
+          <h3>Make Your First Prediction</h3>
+          <p>Upload data or connect a data source to generate predictions</p>
+          <button class="btn" onclick="navigateTo('predictions')">Start Predicting</button>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">🔗</div>
+          <h3>Connect Data Sources</h3>
+          <p>Integrate with Salesforce, Stripe, or upload CSV files</p>
+          <button class="btn" onclick="navigateTo('connectors')">Connect Now</button>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">⚙️</div>
+          <h3>Build Playbooks</h3>
+          <p>Create automated workflows to act on predictions</p>
+          <button class="btn" onclick="navigateTo('playbooks')">Build Playbook</button>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">📈</div>
+          <h3>View Analytics</h3>
+          <p>Track ROI and monitor prediction accuracy</p>
+          <button class="btn" onclick="navigateTo('analytics')">View Analytics</button>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">📚</div>
+          <h3>API Documentation</h3>
+          <p>Integrate ForecastX with your own applications</p>
+          <a href="https://forecastx-production-aff6.up.railway.app/docs" class="btn" target="_blank">View Docs</a>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">💬</div>
+          <h3>Support</h3>
+          <p>Get help from our team or visit the documentation</p>
+          <button class="btn" onclick="navigateTo('support')">Get Support</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = 'https://forecastx-production-aff6.up.railway.app';
+
+    // Check if user is logged in
+    function checkAuth() {
+      const token = localStorage.getItem('access_token');
+      const email = localStorage.getItem('email');
+
+      if (!token || !email) {
+        window.location.href = '/predictx/';
+        return;
+      }
+
+      document.getElementById('userEmail').textContent = email;
+      loadUserStats();
+    }
+
+    // Load user statistics
+    async function loadUserStats() {
+      const token = localStorage.getItem('access_token');
+
+      try {
+        const response = await fetch(`${API_URL}/api/onboarding/progress`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // Update stats based on response
+          console.log('User stats loaded:', data);
+        }
+      } catch (error) {
+        console.error('Error loading stats:', error);
+      }
+    }
+
+    // Navigate to feature
+    function navigateTo(feature) {
+      const routes = {
+        'predictions': '#predictions',
+        'connectors': '#connectors',
+        'playbooks': '#playbooks',
+        'analytics': '#analytics',
+        'support': '#support'
+      };
+      alert(`Navigating to ${feature}. Feature coming soon! API ready at:\n\n${API_URL}`);
+    }
+
+    // Logout
+    function handleLogout() {
+      localStorage.clear();
+      window.location.href = '/predictx/';
+    }
+
+    // Initialize
+    checkAuth();
+  </script>
+</body>
+</html>
