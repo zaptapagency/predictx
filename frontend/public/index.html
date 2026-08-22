@@ -117,12 +117,79 @@
       font-size: 0.85em;
       margin-left: 10px;
     }
+    .signup-section {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 40px;
+      border-radius: 8px;
+      margin: 30px 0;
+    }
+    .signup-section h2 { margin-bottom: 20px; font-size: 1.8em; }
+    .signup-section p { margin-bottom: 20px; opacity: 0.9; }
+    .signup-form {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+    }
+    .signup-form input {
+      flex: 1;
+      min-width: 200px;
+      padding: 12px 15px;
+      border: none;
+      border-radius: 6px;
+      font-size: 1em;
+    }
+    .signup-form button {
+      padding: 12px 30px;
+      background: white;
+      color: #667eea;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .signup-form button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+    }
+    .signup-form button:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+    .message {
+      padding: 12px;
+      margin-top: 15px;
+      border-radius: 6px;
+      display: none;
+    }
+    .message.success {
+      background: #d1fae5;
+      color: #065f46;
+      display: block;
+    }
+    .message.error {
+      background: #fee2e2;
+      color: #991b1b;
+      display: block;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>🚀 ForecastX</h1>
     <p class="tagline">Predictive Customer Analytics Platform</p>
+
+    <div class="signup-section">
+      <h2>Get Started in Seconds</h2>
+      <p>Join hundreds of companies predicting customer churn with AI</p>
+      <div class="signup-form">
+        <input type="email" id="emailInput" placeholder="Enter your email" required>
+        <button onclick="handleSignup()">Start Free Trial</button>
+      </div>
+      <div class="message" id="signupMessage"></div>
+    </div>
 
     <div class="status">
       <h2>✅ Backend is LIVE <span class="badge">Production</span></h2>
@@ -169,9 +236,71 @@
     </div>
 
     <div class="footer">
-      <p><strong>Frontend Status:</strong> Building React app (check back soon)</p>
-      <p style="margin-top: 10px;">Backend is fully functional and ready for integration testing</p>
+      <p><strong>Frontend Status:</strong> Dashboard ready - Enter email to begin</p>
+      <p style="margin-top: 10px;">Backend is fully functional and ready for your predictions</p>
     </div>
   </div>
+
+  <script>
+    const API_URL = 'https://forecastx-production-aff6.up.railway.app';
+
+    async function handleSignup() {
+      const email = document.getElementById('emailInput').value;
+      const messageDiv = document.getElementById('signupMessage');
+      const button = event.target;
+
+      if (!email) {
+        messageDiv.textContent = '⚠️ Please enter your email';
+        messageDiv.className = 'message error';
+        return;
+      }
+
+      button.disabled = true;
+      button.textContent = 'Creating account...';
+      messageDiv.textContent = '';
+
+      try {
+        const response = await fetch(`${API_URL}/api/auth/signup`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: email,
+            password: 'TempPassword123!',
+            organization_name: email.split('@')[0] + ' Co'
+          })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.access_token) {
+          localStorage.setItem('access_token', data.access_token);
+          localStorage.setItem('user_id', data.user.id);
+          localStorage.setItem('email', email);
+
+          messageDiv.textContent = '✅ Account created! Redirecting to dashboard...';
+          messageDiv.className = 'message success';
+
+          setTimeout(() => {
+            window.location.href = '/predictx/dashboard.html';
+          }, 2000);
+        } else {
+          messageDiv.textContent = `⚠️ ${data.detail || 'Signup failed. Please try again.'}`;
+          messageDiv.className = 'message error';
+          button.disabled = false;
+          button.textContent = 'Start Free Trial';
+        }
+      } catch (error) {
+        messageDiv.textContent = `❌ Error: ${error.message}`;
+        messageDiv.className = 'message error';
+        button.disabled = false;
+        button.textContent = 'Start Free Trial';
+      }
+    }
+
+    // Allow Enter key to submit
+    document.getElementById('emailInput')?.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') handleSignup();
+    });
+  </script>
 </body>
 </html>
