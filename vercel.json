@@ -1,6 +1,12 @@
 {
   "version": 2,
-  "public": "frontend/public",
-  "buildCommand": "echo 'Static files ready'",
-  "outputDirectory": "frontend/public"
+  "buildCommand": "mkdir -p .vercel/output/static && cp -r frontend/public/* .vercel/output/static/",
+  "outputDirectory": ".vercel/output/static",
+  "public": false,
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }
