@@ -44,12 +44,14 @@ def create_app() -> FastAPI:
         debug=settings.DEBUG,
     )
 
-    # CORS Middleware - Allow all origins for public API
+    # CORS Middleware - Allow all origins with full configuration
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_origin_regex=".*",
+        allow_credentials=False,
+        allow_methods=["*"],
         allow_headers=["*"],
+        max_age=3600,
     )
 
     # Include routers
