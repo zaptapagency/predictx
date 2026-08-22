@@ -47,8 +47,14 @@ def create_app() -> FastAPI:
     # CORS Middleware
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
+        allow_origins=[
+            "http://localhost:3000",
+            "http://localhost:8000",
+            "https://zaptapagency.github.io",
+            "https://get-ly.com",
+            "*"  # Fallback to wildcard
+        ],
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )
