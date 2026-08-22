@@ -41,36 +41,103 @@ class VerifyEmailRequest(BaseModel):
 
 @router.post("/signup")
 async def signup(request: SignupRequest, db: Session = Depends(get_db)):
-    """Register new user"""
-    # Check existing
-    if db.query(User).filter(User.email == request.email).first():
-        raise HTTPException(status_code=400, detail="Email already registered")
-    if db.query(User).filter(User.username == request.username).first():
-        raise HTTPException(status_code=400, detail="Username already taken")
+    """Register new user - DEBUG VERSION"""
+    try:
+        print(f"[DEBUG] Starting signup for {request.email}")
 
-    # Create user
-    user = User(
-        email=request.email,
-        username=request.username,
-        full_name=request.full_name,
-        hashed_password=AuthService.hash_password(request.password),
-        is_verified=True,
-        is_active=True
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+        # Step 1: Check DB connection
+        try:
+            result = db.query(User).filter(User.email == request.email).first()
+            print(f"[DEBUG] DB check 1 passed, existing user: {result}")
+        except Exception as e:
+            print(f"[ERROR] DB check 1 failed: {e}")
+            raise Exception(f"Database check failed: {e}")
 
-    # Return tokens
-    access_token = AuthService.create_access_token({"sub": str(user.id), "email": user.email})
-    refresh_token = AuthService.create_refresh_token({"sub": str(user.id)})
+        if result:
+            raise HTTPException(status_code=400, detail="Email already registered")
 
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer",
-        "user": {"id": user.id, "email": user.email, "username": user.username, "full_name": user.full_name, "is_verified": True},
-    }
+        # Step 2: Check username
+        try:
+            result = db.query(User).filter(User.username == request.username).first()
+            print(f"[DEBUG] DB check 2 passed, existing username: {result}")
+        except Exception as e:
+            print(f"[ERROR] DB check 2 failed: {e}")
+            raise Exception(f"Username check failed: {e}")
+
+        if result:
+            raise HTTPException(status_code=400, detail="Username already taken")
+
+        # Step 3: Hash password
+        try:
+            hashed = AuthService.hash_password(request.password)
+            print(f"[DEBUG] Password hashed successfully")
+        except Exception as e:
+            print(f"[ERROR] Password hash failed: {e}")
+            raise Exception(f"Password hash failed: {e}")
+
+        # Step 4: Create user object
+        try:
+            user = User(
+                email=request.email,
+                username=request.username,
+                full_name=request.full_name,
+                hashed_password=hashed,
+                is_verified=True,
+                is_active=True
+            )
+            print(f"[DEBUG] User object created")
+        except Exception as e:
+            print(f"[ERROR] User object creation failed: {e}")
+            raise Exception(f"User object creation failed: {e}")
+
+        # Step 5: Add to DB
+        try:
+            db.add(user)
+            print(f"[DEBUG] User added to session")
+        except Exception as e:
+            print(f"[ERROR] Add to DB failed: {e}")
+            raise Exception(f"Add to DB failed: {e}")
+
+        # Step 6: Commit
+        try:
+            db.commit()
+            print(f"[DEBUG] Commit successful")
+        except Exception as e:
+            db.rollback()
+            print(f"[ERROR] Commit failed: {e}")
+            raise Exception(f"Commit failed: {e}")
+
+        # Step 7: Refresh
+        try:
+            db.refresh(user)
+            print(f"[DEBUG] Refresh successful, user ID: {user.id}")
+        except Exception as e:
+            print(f"[ERROR] Refresh failed: {e}")
+            raise Exception(f"Refresh failed: {e}")
+
+        # Step 8: Create tokens
+        try:
+            access_token = AuthService.create_access_token({"sub": str(user.id), "email": user.email})
+            refresh_token = AuthService.create_refresh_token({"sub": str(user.id)})
+            print(f"[DEBUG] Tokens created successfully")
+        except Exception as e:
+            print(f"[ERROR] Token creation failed: {e}")
+            raise Exception(f"Token creation failed: {e}")
+
+        print(f"[DEBUG] Signup complete for {user.email}")
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "user": {"id": user.id, "email": user.email, "username": user.username, "full_name": user.full_name, "is_verified": True},
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = f"{type(e).__name__}: {str(e)}"
+        print(f"[FATAL] Signup failed: {error_msg}")
+        raise HTTPException(status_code=500, detail=f"DEBUG: {error_msg}")
 
 
 @router.post("/login")
