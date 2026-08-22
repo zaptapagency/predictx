@@ -27,6 +27,8 @@ class ManualCORSMiddleware(BaseHTTPMiddleware):
 
 logger = setup_logger(__name__)
 
+# Force Railway redeploy - v3.1.0
+
 
 def run_migrations():
     """Run Alembic migrations on startup"""
