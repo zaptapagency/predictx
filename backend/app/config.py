@@ -48,6 +48,12 @@ class Settings(BaseSettings):
     # Frontend URL
     FRONTEND_URL: str = "http://localhost:3000"
 
+    # Email/SMTP
+    SMTP_SERVER: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+
     # Google OAuth (Optional)
     GOOGLE_OAUTH_CLIENT_ID: str = ""
     GOOGLE_OAUTH_CLIENT_SECRET: str = ""
