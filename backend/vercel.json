@@ -1,11 +1,6 @@
 {
-  "buildCommand": "cd backend && pip install -r requirements.txt",
-  "devCommand": "cd backend && uvicorn app.main:app --host 0.0.0.0 --port 3000",
-  "outputDirectory": "backend",
-  "env": {
-    "PYTHONUNBUFFERED": "1",
-    "DATABASE_URL": "@postgresql_url",
-    "REDIS_URL": "@redis_url"
-  }
+  "framework": "python",
+  "buildCommand": "pip install -r requirements-prod.txt",
+  "devCommand": "uvicorn app.main:app --host 0.0.0.0 --port 3000"
 }
 
