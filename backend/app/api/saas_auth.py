@@ -107,8 +107,8 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Signup error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Signup failed")
+        logger.error(f"Signup error: {type(e).__name__}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Signup failed: {str(e)}")
 
 
 @router.post("/login")
