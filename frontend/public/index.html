@@ -242,8 +242,9 @@
   </div>
 
   <script>
-    // Production Railway - redeployed with CORS fixes
+    // Production Railway API
     const API_URL = 'https://prediction-production-2a83.up.railway.app';
+    const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
 
     async function handleSignup() {
       const email = document.getElementById('emailInput').value;
@@ -261,9 +262,11 @@
       messageDiv.textContent = '';
 
       try {
-        const response = await fetch(`${API_URL}/api/auth/register`, {
+        const apiUrl = `${API_URL}/api/auth/register`;
+        const proxiedUrl = `${CORS_PROXY}${encodeURIComponent(apiUrl)}`;
+
+        const response = await fetch(proxiedUrl, {
           method: 'POST',
-          mode: 'cors',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             email: email,
