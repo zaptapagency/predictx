@@ -39,6 +39,12 @@ class VerifyEmailRequest(BaseModel):
     token: str
 
 
+@router.post("/test-signup")
+async def test_signup():
+    """Minimal test endpoint"""
+    return {"message": "Test endpoint works", "version": "1.0"}
+
+
 @router.post("/signup")
 async def signup(request: SignupRequest, db: Session = Depends(get_db)):
     """Register new user"""
