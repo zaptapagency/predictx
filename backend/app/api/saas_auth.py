@@ -40,7 +40,21 @@ class VerifyEmailRequest(BaseModel):
     token: str
 
 
+@router.options("/signup")
+@router.options("/register")
+async def options_signup():
+    """Handle CORS preflight for signup/register"""
+    return JSONResponse(
+        content={},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+        }
+    )
+
 @router.post("/signup")
+@router.post("/register")
 async def signup(request: SignupRequest, db: Session = Depends(get_db)):
     """Register new user - DEBUG VERSION"""
     try:
