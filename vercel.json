@@ -1,15 +1,6 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "frontend/server.js",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "frontend/server.js"
-    }
-  ]
+  "public": "frontend/public",
+  "buildCommand": "echo 'Static files ready'",
+  "outputDirectory": "frontend/public"
 }
