@@ -5,10 +5,12 @@ import './App.css';
 // Public Pages
 import Landing from './pages/Landing';
 import Signup from './pages/Signup';
+import SignupOAuth from './pages/SignupOAuth';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import VerifyEmail from './pages/VerifyEmail';
 import ResetPassword from './pages/ResetPassword';
+import OnboardingSamplePrediction from './pages/OnboardingSamplePrediction';
 
 // User Pages
 import Dashboard from './pages/Dashboard';
@@ -34,11 +36,15 @@ const App: React.FC = () => {
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<Landing />} />
-        <Route path="/signup" element={<Signup />} />
+        <Route path="/signup" element={<SignupOAuth />} />
+        <Route path="/signup-email" element={<Signup />} />
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+
+        {/* Onboarding Routes */}
+        <Route path="/onboarding/sample-prediction" element={<ProtectedRoute element={<OnboardingSamplePrediction />} />} />
 
         {/* User Routes */}
         <Route path="/dashboard" element={<ProtectedRoute element={<Dashboard />} />} />
