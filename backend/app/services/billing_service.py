@@ -18,8 +18,8 @@ stripe.api_key = settings.STRIPE_API_KEY
 # Stripe product IDs (set these in Stripe dashboard)
 STRIPE_PRICES = {
     "free": None,
-    "pro": settings.get("STRIPE_PRO_PRICE_ID", "price_pro"),
-    "enterprise": settings.get("STRIPE_ENTERPRISE_PRICE_ID", "price_enterprise"),
+    "pro": getattr(settings, "STRIPE_PRO_PRICE_ID", "price_pro"),
+    "enterprise": getattr(settings, "STRIPE_ENTERPRISE_PRICE_ID", "price_enterprise"),
 }
 
 
