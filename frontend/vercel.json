@@ -1,7 +1,5 @@
 {
+  "name": "ForecastX Frontend",
   "framework": "create-react-app",
-  "outputDirectory": "build",
-  "env": {
-    "CI": "false"
-  }
+  "outputDirectory": "build"
 }
