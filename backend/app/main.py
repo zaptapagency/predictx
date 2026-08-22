@@ -44,10 +44,17 @@ def create_app() -> FastAPI:
         debug=settings.DEBUG,
     )
 
-    # CORS Middleware - Allow all origins with full configuration
+    # CORS Middleware - Explicit origin list
+    cors_origins = [
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "https://zaptapagency.github.io",
+        "https://get-ly.com",
+    ]
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origin_regex=".*",
+        allow_origins=cors_origins,
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
