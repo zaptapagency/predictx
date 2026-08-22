@@ -106,6 +106,11 @@ def create_app() -> FastAPI:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
+    # Test CORS endpoint
+    @app.get("/test-cors")
+    async def test_cors():
+        return {"message": "CORS test", "timestamp": datetime.utcnow().isoformat()}
+
     # Root endpoint
     @app.get("/")
     async def root():
