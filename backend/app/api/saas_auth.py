@@ -41,15 +41,11 @@ class VerifyEmailRequest(BaseModel):
 
 @router.post("/signup")
 async def signup(request: SignupRequest, db: Session = Depends(get_db)):
-    """Register new user - simplified without email verification"""
-    # Check if email exists
-    existing = db.query(User).filter(User.email == request.email).first()
-    if existing:
+    """Register new user"""
+    # Check existing
+    if db.query(User).filter(User.email == request.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
-
-    # Check if username exists
-    existing = db.query(User).filter(User.username == request.username).first()
-    if existing:
+    if db.query(User).filter(User.username == request.username).first():
         raise HTTPException(status_code=400, detail="Username already taken")
 
     # Create user
@@ -58,15 +54,14 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
         username=request.username,
         full_name=request.full_name,
         hashed_password=AuthService.hash_password(request.password),
-        is_verified=True,  # Mark as verified immediately
+        is_verified=True,
         is_active=True
     )
-
     db.add(user)
     db.commit()
     db.refresh(user)
 
-    # Create tokens
+    # Return tokens
     access_token = AuthService.create_access_token({"sub": str(user.id), "email": user.email})
     refresh_token = AuthService.create_refresh_token({"sub": str(user.id)})
 
@@ -74,13 +69,7 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
         "access_token": access_token,
         "refresh_token": refresh_token,
         "token_type": "bearer",
-        "user": {
-            "id": user.id,
-            "email": user.email,
-            "username": user.username,
-            "full_name": user.full_name,
-            "is_verified": True,
-        },
+        "user": {"id": user.id, "email": user.email, "username": user.username, "full_name": user.full_name, "is_verified": True},
     }
 
 
