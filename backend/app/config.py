@@ -25,7 +25,12 @@ class Settings(BaseSettings):
     JWT_EXPIRATION_HOURS: int = 24
 
     # CORS
-    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000"]
+    CORS_ORIGINS: List[str] = [
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "https://zaptapagency.github.io",
+        "https://get-ly.com"
+    ]
     CORS_ALLOW_CREDENTIALS: bool = True
 
     # LightGBM Models
