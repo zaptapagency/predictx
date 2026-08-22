@@ -7,11 +7,8 @@ import hashlib
 from app.db.models_saas import Subscription, Invoice, User, Organization, SubscriptionTier
 from app.database import get_db
 from app.services.billing_service import BillingService
-from app.database import get_db
 from app.services.email_service import EmailService
-from app.database import get_db
 from app.config import settings
-from app.database import get_db
 from app.utils import setup_logger
 from app.database import get_db
 

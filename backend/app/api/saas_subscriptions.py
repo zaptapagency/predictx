@@ -5,11 +5,8 @@ from typing import List
 from app.db.models_saas import User, Subscription, Invoice, SubscriptionTier
 from app.database import get_db
 from app.services.billing_service import BillingService
-from app.database import get_db
 from app.services.email_service import EmailService
-from app.database import get_db
 from app.utils import setup_logger
-from app.database import get_db
 
 logger = setup_logger(__name__)
 router = APIRouter(prefix="/api/subscriptions", tags=["subscriptions"])

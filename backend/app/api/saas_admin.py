@@ -3,7 +3,6 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timedelta
 from app.db.models_saas import (
-from app.database import get_db
     User,
     Subscription,
     Invoice,

@@ -5,9 +5,7 @@ from typing import List, Optional, Dict
 from app.db.models_saas import User
 from app.database import get_db
 from app.services.api_key_service import APIKeyService
-from app.database import get_db
 from app.utils import setup_logger
-from app.database import get_db
 
 logger = setup_logger(__name__)
 router = APIRouter(prefix="/api/api-keys", tags=["api-keys"])
