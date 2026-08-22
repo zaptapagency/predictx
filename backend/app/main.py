@@ -91,6 +91,28 @@ def create_app() -> FastAPI:
             "docs": "/docs",
         }
 
+
+    # Schema fix endpoint
+    @app.post("/admin/fix-schema")
+    async def fix_schema():
+        """Fix missing database columns"""
+        try:
+            from app.database import engine
+            with engine.connect() as conn:
+                # Add missing columns if they don't exist
+                commands = [
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR UNIQUE;",
+                ]
+                for cmd in commands:
+                    try:
+                        conn.execute(cmd)
+                        conn.commit()
+                    except:
+                        pass
+            return {"status": "schema fixed"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
     logger.info(f"FastAPI app created: {settings.API_TITLE} v{settings.API_VERSION}")
 
     return app
