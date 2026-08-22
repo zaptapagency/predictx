@@ -1,19 +1,16 @@
 {
   "version": 2,
+  "public": false,
   "builds": [
     {
-      "src": "frontend/package.json",
-      "use": "@vercel/next"
+      "src": "frontend/public/index.html",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "frontend/$1"
+      "dest": "frontend/public/index.html"
     }
-  ],
-  "env": {
-    "REACT_APP_ENV": "@react_app_env",
-    "REACT_APP_API_BASE_URL": "@react_app_api_base_url"
-  }
+  ]
 }

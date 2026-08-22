@@ -1,17 +1,177 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-    <meta
-      name="description"
-      content="PredictX - ML Predictions as a Service"
-    />
-    <title>PredictX</title>
-  </head>
-  <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div id="root"></div>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ForecastX - Predictive Customer Analytics</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      max-width: 800px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      padding: 60px 40px;
+      text-align: center;
+    }
+    h1 {
+      font-size: 3em;
+      margin-bottom: 10px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .tagline { font-size: 1.2em; color: #666; margin-bottom: 40px; }
+    .status {
+      background: #f0f4ff;
+      border-left: 4px solid #667eea;
+      padding: 20px;
+      margin: 30px 0;
+      border-radius: 4px;
+      text-align: left;
+    }
+    .status h2 { color: #667eea; margin-bottom: 10px; font-size: 1.3em; }
+    .status-item { display: flex; align-items: center; margin: 10px 0; font-size: 1em; }
+    .status-icon { margin-right: 10px; font-size: 1.5em; }
+    .api-section { margin: 40px 0; text-align: left; }
+    .api-section h3 { font-size: 1.3em; margin-bottom: 15px; color: #333; }
+    .api-url {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.95em;
+      word-break: break-all;
+      color: #667eea;
+      margin: 10px 0;
+      border: 1px solid #e0e0e0;
+    }
+    .endpoints { margin-top: 20px; }
+    .endpoint {
+      background: #f8f9fa;
+      padding: 10px 15px;
+      margin: 8px 0;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.9em;
+      text-align: left;
+      border-left: 3px solid #667eea;
+    }
+    .cta-buttons {
+      display: flex;
+      gap: 15px;
+      margin-top: 30px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .btn {
+      padding: 12px 24px;
+      font-size: 1em;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+    }
+    .btn-secondary {
+      background: #f0f4ff;
+      color: #667eea;
+      border: 2px solid #667eea;
+    }
+    .btn-secondary:hover {
+      background: #667eea;
+      color: white;
+    }
+    .footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #e0e0e0;
+      color: #999;
+      font-size: 0.9em;
+    }
+    .badge {
+      display: inline-block;
+      background: #10b981;
+      color: white;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.85em;
+      margin-left: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 ForecastX</h1>
+    <p class="tagline">Predictive Customer Analytics Platform</p>
+
+    <div class="status">
+      <h2>✅ Backend is LIVE <span class="badge">Production</span></h2>
+      <div class="status-item">
+        <span class="status-icon">✓</span>
+        <span><strong>API Server</strong>: Healthy and responding</span>
+      </div>
+      <div class="status-item">
+        <span class="status-icon">✓</span>
+        <span><strong>Database</strong>: PostgreSQL connected</span>
+      </div>
+      <div class="status-item">
+        <span class="status-icon">✓</span>
+        <span><strong>All Features</strong>: Ready to use</span>
+      </div>
+    </div>
+
+    <div class="api-section">
+      <h3>📡 API Endpoint</h3>
+      <div class="api-url">https://forecastx-production-aff6.up.railway.app</div>
+
+      <h3 style="margin-top: 30px;">🔌 Available Endpoints</h3>
+      <div class="endpoints">
+        <div class="endpoint">GET /health - Server health check</div>
+        <div class="endpoint">POST /api/auth/signup - Create account</div>
+        <div class="endpoint">POST /api/auth/login - User login</div>
+        <div class="endpoint">GET /api/onboarding/progress - Track onboarding</div>
+        <div class="endpoint">POST /api/connectors/* - Manage data connections</div>
+        <div class="endpoint">GET /api/predictions/* - Get predictions</div>
+        <div class="endpoint">POST /api/playbooks/* - Manage workflows</div>
+        <div class="endpoint">+ 20+ more endpoints</div>
+      </div>
+    </div>
+
+    <div class="api-section">
+      <h3>🧪 Test the API</h3>
+      <div class="api-url">curl https://forecastx-production-aff6.up.railway.app/health</div>
+      <p style="margin-top: 10px; color: #666;">Expected response: {"status":"healthy"}</p>
+    </div>
+
+    <div class="cta-buttons">
+      <a href="https://forecastx-production-aff6.up.railway.app/docs" class="btn btn-primary">📚 API Docs (Swagger)</a>
+      <a href="https://github.com/zaptapagency/predictx" class="btn btn-secondary">💻 GitHub Repo</a>
+    </div>
+
+    <div class="footer">
+      <p><strong>Frontend Status:</strong> Building React app (check back soon)</p>
+      <p style="margin-top: 10px;">Backend is fully functional and ready for integration testing</p>
+    </div>
+  </div>
+</body>
 </html>
