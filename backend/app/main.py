@@ -2,12 +2,34 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import logging
+import subprocess
+import os
 
 from app.config import settings
 from app.utils import setup_logger
 from app.api import saas_auth, saas_subscriptions, saas_api_keys, saas_user, saas_admin, webhooks
 
 logger = setup_logger(__name__)
+
+
+def run_migrations():
+    """Run Alembic migrations on startup"""
+    try:
+        if os.path.exists('/app/alembic.ini'):
+            logger.info("Running database migrations...")
+            result = subprocess.run(
+                ['python', '-m', 'alembic', 'upgrade', 'head'],
+                cwd='/app',
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            if result.returncode == 0:
+                logger.info("✅ Migrations completed successfully")
+            else:
+                logger.warning(f"Migration output: {result.stdout}\n{result.stderr}")
+    except Exception as e:
+        logger.warning(f"Could not run migrations: {e}")
 
 
 def create_app() -> FastAPI:
@@ -35,6 +57,11 @@ def create_app() -> FastAPI:
     app.include_router(saas_user.router)
     app.include_router(saas_admin.router)
     app.include_router(webhooks.router)
+
+    # Startup event - Run migrations
+    @app.on_event("startup")
+    async def startup_event():
+        run_migrations()
 
     # Health check
     @app.get("/health")
