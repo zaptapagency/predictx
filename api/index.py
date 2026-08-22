@@ -1,5 +1,8 @@
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
+
 from app.main import app
 
-# Vercel serverless function handler
-async def handler(request):
-    return await app(request)
+# Export app for Vercel serverless ASGI
+application = app
