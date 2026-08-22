@@ -43,38 +43,60 @@ class VerifyEmailRequest(BaseModel):
 async def signup(request: SignupRequest, db: Session = Depends(get_db)):
     """Register new user"""
     try:
-        # Check if user exists
-        existing_user = db.query(User).filter(User.email == request.email).first()
-        if existing_user:
-            raise HTTPException(status_code=400, detail="Email already registered")
+        logger.info(f"Signup attempt: {request.email}")
 
-        existing_username = db.query(User).filter(User.username == request.username).first()
-        if existing_username:
-            raise HTTPException(status_code=400, detail="Username already taken")
+        # Check if user exists
+        try:
+            existing_user = db.query(User).filter(User.email == request.email).first()
+            if existing_user:
+                raise HTTPException(status_code=400, detail="Email already registered")
+        except Exception as e:
+            logger.error(f"Email check failed: {e}")
+            raise
+
+        try:
+            existing_username = db.query(User).filter(User.username == request.username).first()
+            if existing_username:
+                raise HTTPException(status_code=400, detail="Username already taken")
+        except Exception as e:
+            logger.error(f"Username check failed: {e}")
+            raise
+
+        # Hash password
+        try:
+            hashed = AuthService.hash_password(request.password)
+            logger.info("Password hashed OK")
+        except Exception as e:
+            logger.error(f"Password hash failed: {e}")
+            raise
 
         # Create user
-        user = User(
-            email=request.email,
-            username=request.username,
-            full_name=request.full_name,
-            hashed_password=AuthService.hash_password(request.password),
-        )
-
-        db.add(user)
-        db.commit()
-        db.refresh(user)
+        try:
+            user = User(
+                email=request.email,
+                username=request.username,
+                full_name=request.full_name,
+                hashed_password=hashed,
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            logger.info(f"User created OK: {user.id}")
+        except Exception as e:
+            db.rollback()
+            logger.error(f"User creation failed: {e}")
+            raise
 
         # Create tokens
-        access_token = AuthService.create_access_token({"sub": str(user.id), "email": user.email})
-        refresh_token = AuthService.create_refresh_token({"sub": str(user.id)})
-
-        # Send welcome email (non-blocking)
         try:
-            EmailService.send_welcome_email(request.email, request.full_name)
+            access_token = AuthService.create_access_token({"sub": str(user.id), "email": user.email})
+            refresh_token = AuthService.create_refresh_token({"sub": str(user.id)})
+            logger.info("Tokens created OK")
         except Exception as e:
-            logger.warning(f"Failed to send welcome email: {str(e)}")
+            logger.error(f"Token creation failed: {e}")
+            raise
 
-        logger.info(f"✅ User signed up successfully: {user.email}")
+        logger.info(f"✅ Signup complete: {user.email}")
 
         return {
             "access_token": access_token,
@@ -92,8 +114,8 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Signup error: {type(e).__name__}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Signup failed: {str(e)}")
+        logger.error(f"🔴 Signup error: {type(e).__name__}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error: {type(e).__name__}: {str(e)}")
 
 
 @router.post("/login")
