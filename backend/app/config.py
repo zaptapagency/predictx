@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
 
     # Database
-    DATABASE_URL: str = "postgresql://universalpredict:password@postgres:5432/universalpredict"
+    DATABASE_URL: str = "postgresql://postgres:password@postgres:5432/universalpredict"
 
     # Redis
     REDIS_URL: str = "redis://redis:6379"
