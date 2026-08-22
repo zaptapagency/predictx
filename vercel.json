@@ -1,16 +1,12 @@
 {
   "version": 2,
-  "public": false,
-  "builds": [
-    {
-      "src": "frontend/public/index.html",
-      "use": "@vercel/static"
-    }
-  ],
+  "public": true,
+  "buildCommand": "echo 'Static files ready'",
+  "outputDirectory": ".",
   "routes": [
     {
-      "src": "/(.*)",
-      "dest": "frontend/public/index.html"
+      "src": "^/(.*)$",
+      "dest": "/frontend/public/$1"
     }
   ]
 }
