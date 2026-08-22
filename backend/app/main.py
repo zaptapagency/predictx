@@ -1,13 +1,16 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import logging
 import subprocess
 import os
+from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.utils import setup_logger
 from app.api import saas_auth, saas_subscriptions, saas_api_keys, saas_user, saas_admin, webhooks
+from app.database import get_db, engine
+from app.db.models_saas import User
 
 logger = setup_logger(__name__)
 
