@@ -4,6 +4,7 @@
   "description": "UniversalPredict Dashboard",
   "private": true,
   "dependencies": {
+    "@react-oauth/google": "^0.13.5",
     "@types/react": "^18.2.37",
     "@types/react-dom": "^18.2.15",
     "ajv": "^8.20.0",
