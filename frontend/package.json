@@ -1,10 +1,13 @@
 {
   "name": "forecastx-landing",
   "version": "1.0.0",
-  "description": "ForecastX Predictive Analytics - Landing Page",
-  "private": true,
+  "description": "ForecastX Landing Page",
+  "main": "server.js",
   "scripts": {
-    "build": "echo 'Landing page is static HTML'",
-    "start": "echo 'Frontend landing page ready'"
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.22.2"
   }
 }
