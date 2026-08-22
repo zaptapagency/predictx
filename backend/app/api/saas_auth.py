@@ -39,89 +39,49 @@ class VerifyEmailRequest(BaseModel):
     token: str
 
 
-@router.post("/test-signup")
-async def test_signup():
-    """Minimal test endpoint"""
-    return {"message": "Test endpoint works", "version": "1.0"}
-
-
 @router.post("/signup")
 async def signup(request: SignupRequest, db: Session = Depends(get_db)):
-    """Register new user"""
-    try:
-        logger.info(f"Signup attempt: {request.email}")
+    """Register new user - simplified without email verification"""
+    # Check if email exists
+    existing = db.query(User).filter(User.email == request.email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
 
-        # Check if user exists
-        try:
-            existing_user = db.query(User).filter(User.email == request.email).first()
-            if existing_user:
-                raise HTTPException(status_code=400, detail="Email already registered")
-        except Exception as e:
-            logger.error(f"Email check failed: {e}")
-            raise
+    # Check if username exists
+    existing = db.query(User).filter(User.username == request.username).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Username already taken")
 
-        try:
-            existing_username = db.query(User).filter(User.username == request.username).first()
-            if existing_username:
-                raise HTTPException(status_code=400, detail="Username already taken")
-        except Exception as e:
-            logger.error(f"Username check failed: {e}")
-            raise
+    # Create user
+    user = User(
+        email=request.email,
+        username=request.username,
+        full_name=request.full_name,
+        hashed_password=AuthService.hash_password(request.password),
+        is_verified=True,  # Mark as verified immediately
+        is_active=True
+    )
 
-        # Hash password
-        try:
-            hashed = AuthService.hash_password(request.password)
-            logger.info("Password hashed OK")
-        except Exception as e:
-            logger.error(f"Password hash failed: {e}")
-            raise
+    db.add(user)
+    db.commit()
+    db.refresh(user)
 
-        # Create user
-        try:
-            user = User(
-                email=request.email,
-                username=request.username,
-                full_name=request.full_name,
-                hashed_password=hashed,
-            )
-            db.add(user)
-            db.commit()
-            db.refresh(user)
-            logger.info(f"User created OK: {user.id}")
-        except Exception as e:
-            db.rollback()
-            logger.error(f"User creation failed: {e}")
-            raise
+    # Create tokens
+    access_token = AuthService.create_access_token({"sub": str(user.id), "email": user.email})
+    refresh_token = AuthService.create_refresh_token({"sub": str(user.id)})
 
-        # Create tokens
-        try:
-            access_token = AuthService.create_access_token({"sub": str(user.id), "email": user.email})
-            refresh_token = AuthService.create_refresh_token({"sub": str(user.id)})
-            logger.info("Tokens created OK")
-        except Exception as e:
-            logger.error(f"Token creation failed: {e}")
-            raise
-
-        logger.info(f"✅ Signup complete: {user.email}")
-
-        return {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "username": user.username,
-                "full_name": user.full_name,
-                "is_verified": user.is_verified,
-            },
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"🔴 Signup error: {type(e).__name__}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error: {type(e).__name__}: {str(e)}")
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "username": user.username,
+            "full_name": user.full_name,
+            "is_verified": True,
+        },
+    }
 
 
 @router.post("/login")
