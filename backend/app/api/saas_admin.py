@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timedelta
 from app.db.models_saas import (
+from app.database import get_db
     User,
     Subscription,
     Invoice,
@@ -10,6 +11,7 @@ from app.db.models_saas import (
     SubscriptionTier,
 )
 from app.utils import setup_logger
+from app.database import get_db
 
 logger = setup_logger(__name__)
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -57,7 +59,7 @@ class PlatformAnalyticsResponse:
     average_revenue_per_user: float
 
 
-async def get_admin_user(current_user: User = Depends(), db: Session = Depends()):
+async def get_admin_user(current_user: User = Depends(get_db), db: Session = Depends(get_db)):
     """Verify user is admin"""
     if not current_user or not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Admin access required")
@@ -69,7 +71,7 @@ async def list_all_users(
     skip: int = Query(0),
     limit: int = Query(10),
     admin_user: User = Depends(get_admin_user),
-    db: Session = Depends(),
+    db: Session = Depends(get_db),
 ):
     """List all users (admin only)"""
     try:
@@ -92,7 +94,7 @@ async def list_all_users(
 async def get_user_details(
     user_id: int,
     admin_user: User = Depends(get_admin_user),
-    db: Session = Depends(),
+    db: Session = Depends(get_db),
 ):
     """Get user details (admin only)"""
     try:
@@ -141,7 +143,7 @@ async def get_user_details(
 async def toggle_admin_status(
     user_id: int,
     admin_user: User = Depends(get_admin_user),
-    db: Session = Depends(),
+    db: Session = Depends(get_db),
 ):
     """Toggle user admin status (admin only)"""
     try:
@@ -168,7 +170,7 @@ async def toggle_admin_status(
 @router.get("/subscriptions")
 async def get_subscription_stats(
     admin_user: User = Depends(get_admin_user),
-    db: Session = Depends(),
+    db: Session = Depends(get_db),
 ):
     """Get subscription statistics (admin only)"""
     try:
@@ -206,7 +208,7 @@ async def get_subscription_stats(
 @router.get("/analytics")
 async def get_platform_analytics(
     admin_user: User = Depends(get_admin_user),
-    db: Session = Depends(),
+    db: Session = Depends(get_db),
 ):
     """Get platform analytics (admin only)"""
     try:
@@ -268,7 +270,7 @@ async def get_all_invoices(
     skip: int = Query(0),
     limit: int = Query(10),
     admin_user: User = Depends(get_admin_user),
-    db: Session = Depends(),
+    db: Session = Depends(get_db),
 ):
     """Get all invoices (admin only)"""
     try:

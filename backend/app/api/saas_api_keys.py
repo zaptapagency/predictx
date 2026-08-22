@@ -3,8 +3,11 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional, Dict
 from app.db.models_saas import User
+from app.database import get_db
 from app.services.api_key_service import APIKeyService
+from app.database import get_db
 from app.utils import setup_logger
+from app.database import get_db
 
 logger = setup_logger(__name__)
 router = APIRouter(prefix="/api/api-keys", tags=["api-keys"])
@@ -43,7 +46,7 @@ class UpdatePermissionsRequest(BaseModel):
 
 
 @router.get("/", response_model=List[APIKeyResponse])
-async def list_api_keys(current_user: User = Depends(), db: Session = Depends()):
+async def list_api_keys(current_user: User = Depends(get_db), db: Session = Depends(get_db)):
     """List all API keys for user"""
     try:
         keys = APIKeyService.list_api_keys(db, current_user.id)
@@ -57,8 +60,8 @@ async def list_api_keys(current_user: User = Depends(), db: Session = Depends())
 @router.post("/", response_model=APIKeyCreateResponse)
 async def create_api_key(
     request: CreateAPIKeyRequest,
-    current_user: User = Depends(),
-    db: Session = Depends(),
+    current_user: User = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Create new API key"""
     try:
@@ -87,8 +90,8 @@ async def create_api_key(
 @router.delete("/{key_id}")
 async def revoke_api_key(
     key_id: int,
-    current_user: User = Depends(),
-    db: Session = Depends(),
+    current_user: User = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Revoke API key"""
     try:
@@ -110,8 +113,8 @@ async def revoke_api_key(
 async def update_api_key_permissions(
     key_id: int,
     request: UpdatePermissionsRequest,
-    current_user: User = Depends(),
-    db: Session = Depends(),
+    current_user: User = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Update API key permissions"""
     try:

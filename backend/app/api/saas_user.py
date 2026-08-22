@@ -3,8 +3,11 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 from app.db.models_saas import User, Organization
+from app.database import get_db
 from app.services.auth_service import AuthService
+from app.database import get_db
 from app.utils import setup_logger
+from app.database import get_db
 
 logger = setup_logger(__name__)
 router = APIRouter(prefix="/api/users", tags=["users"])
@@ -47,7 +50,7 @@ class OrganizationResponse(BaseModel):
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_current_user(current_user: User = Depends(), db: Session = Depends()):
+async def get_current_user(current_user: User = Depends(get_db), db: Session = Depends(get_db)):
     """Get current user profile"""
     try:
         return current_user
@@ -60,8 +63,8 @@ async def get_current_user(current_user: User = Depends(), db: Session = Depends
 @router.put("/me", response_model=UserResponse)
 async def update_profile(
     request: UpdateProfileRequest,
-    current_user: User = Depends(),
-    db: Session = Depends(),
+    current_user: User = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Update user profile"""
     try:
@@ -98,8 +101,8 @@ async def update_profile(
 @router.post("/change-password")
 async def change_password(
     request: ChangePasswordRequest,
-    current_user: User = Depends(),
-    db: Session = Depends(),
+    current_user: User = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Change user password"""
     try:
@@ -122,7 +125,7 @@ async def change_password(
 
 
 @router.get("/organization", response_model=OrganizationResponse)
-async def get_organization(current_user: User = Depends(), db: Session = Depends()):
+async def get_organization(current_user: User = Depends(get_db), db: Session = Depends(get_db)):
     """Get user's organization"""
     try:
         if not current_user.organization_id:
@@ -143,7 +146,7 @@ async def get_organization(current_user: User = Depends(), db: Session = Depends
 
 
 @router.delete("/me")
-async def delete_account(current_user: User = Depends(), db: Session = Depends()):
+async def delete_account(current_user: User = Depends(get_db), db: Session = Depends(get_db)):
     """Delete user account (soft delete)"""
     try:
         current_user.is_active = False

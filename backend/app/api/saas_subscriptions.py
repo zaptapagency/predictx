@@ -3,9 +3,13 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List
 from app.db.models_saas import User, Subscription, Invoice, SubscriptionTier
+from app.database import get_db
 from app.services.billing_service import BillingService
+from app.database import get_db
 from app.services.email_service import EmailService
+from app.database import get_db
 from app.utils import setup_logger
+from app.database import get_db
 
 logger = setup_logger(__name__)
 router = APIRouter(prefix="/api/subscriptions", tags=["subscriptions"])
@@ -42,7 +46,7 @@ class InvoiceResponse(BaseModel):
 
 
 @router.get("/current", response_model=SubscriptionResponse)
-async def get_current_subscription(current_user: User = Depends(), db: Session = Depends()):
+async def get_current_subscription(current_user: User = Depends(get_db), db: Session = Depends(get_db)):
     """Get current subscription"""
     try:
         subscription = (
@@ -76,8 +80,8 @@ async def get_current_subscription(current_user: User = Depends(), db: Session =
 @router.post("/upgrade", response_model=SubscriptionResponse)
 async def upgrade_subscription(
     request: UpgradeSubscriptionRequest,
-    current_user: User = Depends(),
-    db: Session = Depends(),
+    current_user: User = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """Upgrade subscription tier"""
     try:
@@ -119,7 +123,7 @@ async def upgrade_subscription(
 
 
 @router.post("/cancel")
-async def cancel_subscription(current_user: User = Depends(), db: Session = Depends()):
+async def cancel_subscription(current_user: User = Depends(get_db), db: Session = Depends(get_db)):
     """Cancel subscription"""
     try:
         subscription = (
@@ -150,7 +154,7 @@ async def cancel_subscription(current_user: User = Depends(), db: Session = Depe
 
 
 @router.get("/invoices", response_model=List[InvoiceResponse])
-async def get_invoices(current_user: User = Depends(), db: Session = Depends()):
+async def get_invoices(current_user: User = Depends(get_db), db: Session = Depends(get_db)):
     """Get user's invoices"""
     try:
         invoices = (
@@ -168,7 +172,7 @@ async def get_invoices(current_user: User = Depends(), db: Session = Depends()):
 
 
 @router.get("/usage")
-async def get_usage(current_user: User = Depends(), db: Session = Depends()):
+async def get_usage(current_user: User = Depends(get_db), db: Session = Depends(get_db)):
     """Get current usage statistics"""
     try:
         from datetime import datetime, timedelta

@@ -7,6 +7,7 @@ from app.services.auth_service import AuthService
 from app.services.email_service import EmailService
 from app.config import settings
 from app.utils import setup_logger
+from app.database import get_db
 
 logger = setup_logger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -39,7 +40,7 @@ class VerifyEmailRequest(BaseModel):
 
 
 @router.post("/signup")
-async def signup(request: SignupRequest, db: Session = Depends()):
+async def signup(request: SignupRequest, db: Session = Depends(get_db)):
     """Register new user"""
     try:
         # Check if user exists
@@ -116,7 +117,7 @@ async def signup(request: SignupRequest, db: Session = Depends()):
 
 
 @router.post("/login")
-async def login(request: LoginRequest, db: Session = Depends()):
+async def login(request: LoginRequest, db: Session = Depends(get_db)):
     """Login user"""
     try:
         user = db.query(User).filter(User.email == request.email).first()
@@ -158,7 +159,7 @@ async def login(request: LoginRequest, db: Session = Depends()):
 
 
 @router.post("/verify-email")
-async def verify_email(request: VerifyEmailRequest, db: Session = Depends()):
+async def verify_email(request: VerifyEmailRequest, db: Session = Depends(get_db)):
     """Verify email address"""
     try:
         if AuthService.verify_email_token(db, request.user_id, request.token):
@@ -174,7 +175,7 @@ async def verify_email(request: VerifyEmailRequest, db: Session = Depends()):
 
 
 @router.post("/password-reset")
-async def request_password_reset(request: PasswordResetRequest, db: Session = Depends()):
+async def request_password_reset(request: PasswordResetRequest, db: Session = Depends(get_db)):
     """Request password reset"""
     try:
         user = db.query(User).filter(User.email == request.email).first()
@@ -200,7 +201,7 @@ async def request_password_reset(request: PasswordResetRequest, db: Session = De
 
 
 @router.post("/password-reset/confirm")
-async def confirm_password_reset(request: PasswordResetConfirm, db: Session = Depends()):
+async def confirm_password_reset(request: PasswordResetConfirm, db: Session = Depends(get_db)):
     """Confirm password reset"""
     try:
         if AuthService.reset_password(db, request.token, request.new_password):
