@@ -79,24 +79,15 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
         user.organization_id = organization.id
         db.commit()
 
-        # Send welcome email (non-blocking)
-        try:
-            EmailService.send_welcome_email(request.email, request.full_name)
-        except:
-            logger.warning(f"Failed to send welcome email to {request.email}")
-
-        # Create verification token
-        try:
-            verification_token = AuthService.create_verification_token(db, user.id)
-            # In production, send email with link
-            verification_link = f"{settings.FRONTEND_URL}/verify-email?user_id={user.id}&token={verification_token}"
-            EmailService.send_verification_email(request.email, verification_link)
-        except:
-            logger.warning(f"Failed to send verification email to {request.email}")
-
         # Create tokens
         access_token = AuthService.create_access_token({"sub": str(user.id), "email": user.email})
         refresh_token = AuthService.create_refresh_token({"sub": str(user.id)})
+
+        # Send welcome email (non-blocking)
+        try:
+            EmailService.send_welcome_email(request.email, request.full_name)
+        except Exception as e:
+            logger.warning(f"Failed to send welcome email: {str(e)}")
 
         logger.info(f"User signed up: {user.email}")
 
