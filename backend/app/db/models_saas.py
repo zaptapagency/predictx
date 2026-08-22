@@ -36,7 +36,7 @@ class User(Base):
     last_login = Column(DateTime, nullable=True)
 
     # Relationships
-    organization = relationship("Organization", back_populates="users")
+    organization = relationship("Organization", back_populates="users", foreign_keys=[organization_id])
     subscriptions = relationship("Subscription", back_populates="user")
     api_keys = relationship("APIKey", back_populates="user")
     usage_logs = relationship("UsageLog", back_populates="user")
