@@ -89,7 +89,7 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
         except Exception as e:
             logger.warning(f"Failed to send welcome email: {str(e)}")
 
-        logger.info(f"User signed up: {user.email}")
+        logger.info(f"✅ User signed up successfully: {user.email}")
 
         return {
             "access_token": access_token,
