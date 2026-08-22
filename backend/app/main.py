@@ -1,6 +1,8 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 import logging
 import subprocess
 import os
@@ -11,6 +13,17 @@ from app.utils import setup_logger
 from app.api import saas_auth, saas_subscriptions, saas_api_keys, saas_user, saas_admin, webhooks
 from app.database import get_db, engine
 from app.db.models_saas import User
+
+
+class ManualCORSMiddleware(BaseHTTPMiddleware):
+    """Manual CORS middleware that explicitly adds headers"""
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        response.headers["Access-Control-Max-Age"] = "3600"
+        return response
 
 logger = setup_logger(__name__)
 
@@ -44,22 +57,8 @@ def create_app() -> FastAPI:
         debug=settings.DEBUG,
     )
 
-    # CORS Middleware - Explicit origin list
-    cors_origins = [
-        "http://localhost:3000",
-        "http://localhost:8000",
-        "https://zaptapagency.github.io",
-        "https://get-ly.com",
-    ]
-
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=cors_origins,
-        allow_credentials=False,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        max_age=3600,
-    )
+    # Custom CORS Middleware - Add headers manually to all responses
+    app.add_middleware(ManualCORSMiddleware)
 
     # Include routers
     app.include_router(saas_auth.router)
