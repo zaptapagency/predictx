@@ -242,9 +242,8 @@
   </div>
 
   <script>
-    // Production Railway API
+    // Production Railway API with direct fetch (CORS handled by backend)
     const API_URL = 'https://prediction-production-2a83.up.railway.app';
-    const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
 
     async function handleSignup() {
       const email = document.getElementById('emailInput').value;
@@ -262,12 +261,13 @@
       messageDiv.textContent = '';
 
       try {
-        const apiUrl = `${API_URL}/api/auth/register`;
-        const proxiedUrl = `${CORS_PROXY}${encodeURIComponent(apiUrl)}`;
-
-        const response = await fetch(proxiedUrl, {
+        const response = await fetch(`${API_URL}/api/auth/register`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          mode: 'cors',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          },
           body: JSON.stringify({
             email: email,
             username: email.split('@')[0] + Date.now().toString().slice(-4),
@@ -296,7 +296,7 @@
           button.textContent = 'Start Free Trial';
         }
       } catch (error) {
-        messageDiv.textContent = `❌ Connection error: ${error.message}. Check API at /api/auth/register`;
+        messageDiv.textContent = `❌ Connection error: ${error.message}`;
         messageDiv.className = 'message error';
         button.disabled = false;
         button.textContent = 'Start Free Trial';
