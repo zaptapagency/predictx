@@ -72,6 +72,16 @@ def create_app() -> FastAPI:
             "environment": settings.ENVIRONMENT,
         }
 
+    # Migration trigger endpoint
+    @app.post("/admin/migrate")
+    async def trigger_migrations():
+        """Trigger database migrations (admin only)"""
+        try:
+            run_migrations()
+            return {"status": "success", "message": "Migrations completed"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
     # Root endpoint
     @app.get("/")
     async def root():
