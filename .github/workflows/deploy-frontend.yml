@@ -11,19 +11,28 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy to Pages
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: 'frontend/public'
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v4
+
+      - name: Deploy to GitHub Pages
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+          # Copy frontend/public to temp directory
+          cp -r frontend/public /tmp/public
+
+          # Switch to gh-pages branch
+          git fetch origin gh-pages --depth=1 2>/dev/null || true
+          git checkout gh-pages 2>/dev/null || git checkout --orphan gh-pages
+
+          # Replace content
+          git rm -r . 2>/dev/null || true
+          cp -r /tmp/public/* .
+
+          # Commit and push
+          git add .
+          git commit -m "Deploy frontend from ${{ github.sha }}" || exit 0
+          git push origin gh-pages
