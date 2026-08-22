@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "services": {
+    "predictx": {
+      "variables": {
+        "DATABASE_URL": "${{Postgres.DATABASE_URL}}"
+      }
+    }
+  }
+}
