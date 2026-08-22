@@ -8,7 +8,7 @@ class Settings(BaseSettings):
 
     # API
     API_TITLE: str = "UniversalPredict API"
-    API_VERSION: str = "1.0.0"
+    API_VERSION: str = "3.1.1-CORS-FIX"
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
     ENVIRONMENT: str = "development"
