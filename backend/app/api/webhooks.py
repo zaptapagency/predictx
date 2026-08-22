@@ -247,7 +247,7 @@ def handle_invoice_payment_succeeded(db: Session, data: dict):
         db.commit()
 
         # Send email to user
-        user = db.query(User).filter(User.id=organization.owner_id).first()
+        user = db.query(User).filter(User.id==organization.owner_id).first()
         if user:
             EmailService.send_invoice_email(user.email, stripe_invoice_id, amount / 100)
 
