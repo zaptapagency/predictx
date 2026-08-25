@@ -5,7 +5,7 @@ Get actions, execute actions, track outcomes
 
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, and_
+from sqlalchemy import desc, and_, func
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 import uuid

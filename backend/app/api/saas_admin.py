@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -11,6 +12,7 @@ from app.db.models_saas import (
 )
 from app.utils import setup_logger
 from app.database import get_db
+from app.services.auth_service import get_current_user as current_user_dep
 
 logger = setup_logger(__name__)
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -58,7 +60,7 @@ class PlatformAnalyticsResponse:
     average_revenue_per_user: float
 
 
-async def get_admin_user(current_user: User = Depends(get_db), db: Session = Depends(get_db)):
+async def get_admin_user(current_user: User = Depends(current_user_dep), db: Session = Depends(get_db)):
     """Verify user is admin"""
     if not current_user or not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Admin access required")

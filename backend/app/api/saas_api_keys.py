@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict
 from app.db.models_saas import User
 from app.database import get_db
+from app.services.auth_service import get_current_user as current_user_dep
 from app.services.api_key_service import APIKeyService
 from app.utils import setup_logger
 
@@ -44,7 +45,7 @@ class UpdatePermissionsRequest(BaseModel):
 
 
 @router.get("/", response_model=List[APIKeyResponse])
-async def list_api_keys(current_user: User = Depends(get_db), db: Session = Depends(get_db)):
+async def list_api_keys(current_user: User = Depends(current_user_dep), db: Session = Depends(get_db)):
     """List all API keys for user"""
     try:
         keys = APIKeyService.list_api_keys(db, current_user.id)
@@ -58,7 +59,7 @@ async def list_api_keys(current_user: User = Depends(get_db), db: Session = Depe
 @router.post("/", response_model=APIKeyCreateResponse)
 async def create_api_key(
     request: CreateAPIKeyRequest,
-    current_user: User = Depends(get_db),
+    current_user: User = Depends(current_user_dep),
     db: Session = Depends(get_db),
 ):
     """Create new API key"""
@@ -88,7 +89,7 @@ async def create_api_key(
 @router.delete("/{key_id}")
 async def revoke_api_key(
     key_id: int,
-    current_user: User = Depends(get_db),
+    current_user: User = Depends(current_user_dep),
     db: Session = Depends(get_db),
 ):
     """Revoke API key"""
@@ -111,7 +112,7 @@ async def revoke_api_key(
 async def update_api_key_permissions(
     key_id: int,
     request: UpdatePermissionsRequest,
-    current_user: User = Depends(get_db),
+    current_user: User = Depends(current_user_dep),
     db: Session = Depends(get_db),
 ):
     """Update API key permissions"""

@@ -31,8 +31,8 @@ def get_user_home(
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
     impact_records = db.query(ImpactRecord).filter(
-        ImpactRecord.user_id == current_user.id,
-        ImpactRecord.created_at >= month_start
+        ImpactRecord.organization_id == current_user.organization_id,
+        ImpactRecord.predicted_at >= month_start
     ).all()
 
     total_impact = sum(r.value_amount for r in impact_records)
@@ -194,8 +194,8 @@ def get_daily_summary(
 
     # Today's impact
     today_impacts = db.query(ImpactRecord).filter(
-        ImpactRecord.user_id == current_user.id,
-        ImpactRecord.created_at >= today_start
+        ImpactRecord.organization_id == current_user.organization_id,
+        ImpactRecord.predicted_at >= today_start
     ).all()
 
     today_impact = sum(r.value_amount for r in today_impacts)
