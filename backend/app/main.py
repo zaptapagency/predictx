@@ -63,6 +63,17 @@ def run_migrations():
     except Exception as e:
         logger.warning(f"Could not run migrations: {e}")
 
+    # Fallback: ensure tables exist even when alembic is unavailable or a no-op.
+    # create_all only creates what is missing, so this is safe to run every boot.
+    try:
+        from app.db.models_saas import Base
+        from app.database import engine
+        Base.metadata.create_all(bind=engine)
+        logger.info("✅ Schema ensured via SQLAlchemy create_all")
+    except Exception as e:
+        logger.error(f"Schema creation failed: {e}")
+        raise
+
 
 def create_app() -> FastAPI:
     """Create and configure FastAPI application"""
