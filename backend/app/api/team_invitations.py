@@ -104,17 +104,15 @@ def send_team_invitations(
     for invitation in invitations:
         signup_link = f"https://forecastx.io/auth/team-invite?token={invitation.token}"
 
+        html = (
+            f"<h2>{current_user.name} invited you to join {organization.name} on ForecastX</h2>"
+            f"<p>Hi {invitation.name or 'there'},</p>"
+            f"<p><a href=\"{signup_link}\">Accept your invitation</a> (expires in 7 days).</p>"
+        )
         email_service.send_email(
-            to=invitation.email,
+            to_email=invitation.email,
             subject=f"Join {organization.name} on ForecastX",
-            template="team_invitation",
-            data={
-                "invited_by_name": current_user.name,
-                "company_name": organization.name,
-                "invitee_name": invitation.name,
-                "signup_link": signup_link,
-                "expires_in_days": 7,
-            }
+            html_content=html,
         )
 
     return {

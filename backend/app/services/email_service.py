@@ -13,12 +13,26 @@ class EmailService:
 
     @staticmethod
     def send_email(
-        to_email: str,
-        subject: str,
-        html_content: str,
+        to_email: str = None,
+        subject: str = "",
+        html_content: str = "",
         text_content: str = "",
+        to: str = None,
+        template: str = None,
+        data: dict = None,
     ) -> bool:
-        """Send email"""
+        """Send email. Accepts both (to_email, html_content) and the
+        (to, template, data) call style used by the feature routers —
+        the latter renders a simple HTML body from the data dict."""
+        to_email = to_email or to
+        if not to_email:
+            return False
+        if not html_content and data:
+            rows = "".join(
+                f"<p><strong>{k.replace('_', ' ').title()}:</strong> {v}</p>"
+                for k, v in data.items() if v is not None
+            )
+            html_content = f"<h2>{subject}</h2>{rows}"
         try:
             # Create message
             message = MIMEMultipart("alternative")

@@ -91,6 +91,13 @@ def train_model(
             "message": "Model training started"
         }
 
+    except KeyError:
+        valid = ", ".join(t.name.lower() for t in ModelType)
+        raise HTTPException(status_code=400, detail=f"Invalid model_type '{request.model_type}'. Valid types: {valid}")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -256,6 +263,11 @@ def make_prediction(
             "predicted_at": prediction.predicted_at
         }
 
+    except ValueError as e:
+        status = 404 if "not found" in str(e).lower() else 400
+        raise HTTPException(status_code=status, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

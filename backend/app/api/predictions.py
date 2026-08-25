@@ -14,9 +14,19 @@ async def predict(request: PredictionRequest) -> PredictionResponse:
     """Make a single prediction"""
 
     try:
-        # Initialize model loader
-        model_loader = LightGBMModelLoader()
-        model_loader.load_all_models()
+        # Initialize model loader; the pre-trained LightGBM repo is an
+        # optional install — respond 503 rather than a raw 500 without it.
+        try:
+            model_loader = LightGBMModelLoader()
+            model_loader.load_all_models()
+        except (ValueError, FileNotFoundError) as e:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Pre-trained models are not installed on this deployment. "
+                    "Use POST /api/predictions/models/train to train a model instead."
+                ),
+            )
 
         # Initialize feature processor
         feature_processor = FeatureProcessor()
@@ -48,6 +58,8 @@ async def predict(request: PredictionRequest) -> PredictionResponse:
             inference_time_ms=15.0,
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Prediction error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
