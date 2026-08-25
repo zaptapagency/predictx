@@ -121,7 +121,7 @@ def complete_onboarding_step(
         event_type="step_completed",
         step_id=step_id,
         action=request.action,
-        metadata=request.metadata
+        meta_data=request.metadata
     )
     db.add(event)
     db.commit()
@@ -159,7 +159,7 @@ def select_goal(
         organization_id=current_user.organization_id,
         event_type="goal_selected",
         action=f"selected_{request.goal}",
-        metadata={"goal": request.goal}
+        meta_data={"goal": request.goal}
     )
     db.add(event)
     db.commit()
@@ -195,7 +195,7 @@ def select_template(
         organization_id=current_user.organization_id,
         event_type="template_selected",
         action=f"selected_{request.template}",
-        metadata={"template": request.template}
+        meta_data={"template": request.template}
     )
     db.add(event)
     db.commit()

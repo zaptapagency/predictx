@@ -40,7 +40,7 @@ class Insight(Base):
 
     # Data
     related_entity = Column(String(255), nullable=True)  # customer_name, playbook_id, etc
-    metadata = Column(JSON, nullable=True)  # Additional context
+    meta_data = Column("metadata", JSON, nullable=True)  # Additional context
 
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 

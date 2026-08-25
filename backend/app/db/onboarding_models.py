@@ -65,7 +65,7 @@ class OnboardingEvent(Base):
 
     # Event context
     action = Column(String(255))  # "clicked_connect", "selected_goal", etc
-    metadata = Column(JSON)  # Additional data
+    meta_data = Column("metadata", JSON)  # Additional data
 
     # Timing
     duration_seconds = Column(Integer)  # Time spent on step
