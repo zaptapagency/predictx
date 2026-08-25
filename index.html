@@ -278,6 +278,8 @@
 
         if (response.ok && data.success) {
           localStorage.setItem('api_key', data.api_key);
+          localStorage.setItem('access_token', data.access_token);
+          localStorage.setItem('refresh_token', data.refresh_token);
           localStorage.setItem('user_id', data.user_id);
           localStorage.setItem('email', email);
 
