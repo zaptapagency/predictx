@@ -27,6 +27,9 @@ class EmailService:
         to_email = to_email or to
         if not to_email:
             return False
+        if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
+            logger.info(f"SMTP not configured; skipping email to {to_email}: {subject}")
+            return False
         if not html_content and data:
             rows = "".join(
                 f"<p><strong>{k.replace('_', ' ').title()}:</strong> {v}</p>"
@@ -46,7 +49,7 @@ class EmailService:
             message.attach(MIMEText(html_content, "html"))
 
             # Send email
-            with smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT) as server:
+            with smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT, timeout=10) as server:
                 server.starttls()
                 server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
                 server.send_message(message)
