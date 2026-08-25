@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from sqlalchemy.orm import Session
 from app.config import settings
 from app.db.models_saas import User, PasswordResetToken
@@ -10,22 +10,19 @@ import secrets
 
 logger = setup_logger(__name__)
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 class AuthService:
     """Authentication service for SaaS"""
 
     @staticmethod
     def hash_password(password: str) -> str:
-        """Hash password"""
-        return pwd_context.hash(password)
+        """Hash password using bcrypt directly (avoids passlib's broken bcrypt version probe)"""
+        return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
     @staticmethod
     def verify_password(plain_password: str, hashed_password: str) -> bool:
         """Verify password"""
-        return pwd_context.verify(plain_password, hashed_password)
+        return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
 
     @staticmethod
     def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -75,7 +72,7 @@ class AuthService:
     def create_verification_token(db: Session, user_id: int) -> str:
         """Create email verification token"""
         token = secrets.token_urlsafe(32)
-        token_hash = pwd_context.hash(token)
+        token_hash = AuthService.hash_password(token)
 
         # Store hash in database
         user = db.query(User).filter(User.id == user_id).first()
@@ -97,7 +94,7 @@ class AuthService:
         if user.verification_token_expires < datetime.utcnow():
             return False
 
-        if pwd_context.verify(token, user.verification_token):
+        if AuthService.verify_password(token, user.verification_token):
             user.is_verified = True
             user.verification_token = None
             user.verification_token_expires = None
@@ -110,7 +107,7 @@ class AuthService:
     def create_password_reset_token(db: Session, user_id: int) -> str:
         """Create password reset token"""
         token = secrets.token_urlsafe(32)
-        token_hash = pwd_context.hash(token)
+        token_hash = AuthService.hash_password(token)
 
         reset_token = PasswordResetToken(
             user_id=user_id,
@@ -133,7 +130,7 @@ class AuthService:
             ).all()
 
             for rt in reset_tokens:
-                if pwd_context.verify(token, rt.token_hash):
+                if AuthService.verify_password(token, rt.token_hash):
                     return rt.user_id
 
             return None

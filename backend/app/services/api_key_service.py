@@ -1,13 +1,19 @@
 import secrets
 from typing import Optional, List, Dict
 from sqlalchemy.orm import Session
-from passlib.context import CryptContext
+import bcrypt
 from app.db.models_saas import APIKey, User
 from app.utils import setup_logger
 
 logger = setup_logger(__name__)
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def _hash_secret(secret: str) -> str:
+    return bcrypt.hashpw(secret.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def _verify_secret(secret: str, hashed: str) -> bool:
+    return bcrypt.checkpw(secret.encode("utf-8"), hashed.encode("utf-8"))
 
 
 class APIKeyService:
@@ -31,7 +37,7 @@ class APIKeyService:
         """Create new API key"""
         try:
             prefix, secret = APIKeyService.generate_api_key()
-            key_hash = pwd_context.hash(secret)
+            key_hash = _hash_secret(secret)
 
             # Default permissions
             if permissions is None:
@@ -91,7 +97,7 @@ class APIKeyService:
                 return None
 
             # Verify secret
-            if not pwd_context.verify(secret, api_key.key_hash):
+            if not _verify_secret(secret, api_key.key_hash):
                 return None
 
             # Update last used
