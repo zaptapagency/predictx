@@ -28,7 +28,7 @@ class SubscriptionResponse(BaseModel):
     current_period_end: str = None
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 
 class InvoiceResponse(BaseModel):
@@ -41,7 +41,7 @@ class InvoiceResponse(BaseModel):
     invoice_pdf_url: str = None
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 
 @router.get("/current", response_model=SubscriptionResponse)
@@ -222,7 +222,7 @@ async def get_usage(current_user: User = Depends(current_user_dep), db: Session 
                 UsageLog.created_at >= month_start,
                 UsageLog.created_at < month_end,
             )
-            .with_entities(db.func.sum(UsageLog.cost))
+            .with_entities(func.sum(UsageLog.cost))
             .scalar()
         ) or 0.0
 

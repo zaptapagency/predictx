@@ -24,7 +24,7 @@ class UserResponse(BaseModel):
     created_at: str
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 
 class UpdateProfileRequest(BaseModel):
@@ -45,7 +45,7 @@ class OrganizationResponse(BaseModel):
     created_at: str
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 
 @router.get("/me", response_model=UserResponse)

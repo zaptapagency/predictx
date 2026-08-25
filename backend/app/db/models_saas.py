@@ -42,6 +42,11 @@ class User(Base):
     usage_logs = relationship("UsageLog", back_populates="user")
     invoices = relationship("Invoice", back_populates="user")
 
+    @property
+    def name(self):
+        """Display name; feature routers reference user.name throughout."""
+        return self.full_name or self.username or self.email
+
 
 class Organization(Base):
     """Organizations/Teams for multi-tenant"""

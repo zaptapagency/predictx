@@ -36,7 +36,7 @@ class UserListResponse:
     created_at: str
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 
 class SubscriptionStatsResponse:
