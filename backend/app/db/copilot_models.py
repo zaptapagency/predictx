@@ -18,8 +18,8 @@ class CopilotRecommendation(Base):
     __tablename__ = "copilot_recommendations"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("user.id"), nullable=False, index=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
 
     # Recommendation details
     title = Column(String(255), nullable=False)
@@ -68,7 +68,7 @@ class CopilotFeedback(Base):
 
     id = Column(Integer, primary_key=True)
     recommendation_id = Column(Integer, ForeignKey("copilot_recommendations.id"), nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("user.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
 
     # Feedback
     was_helpful = Column(Boolean, nullable=True)

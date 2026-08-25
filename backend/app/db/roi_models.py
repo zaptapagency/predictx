@@ -43,7 +43,7 @@ class ImpactRecord(Base):
     __tablename__ = "impact_records"
 
     id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
     playbook_id = Column(Integer, ForeignKey("playbooks.id"), nullable=True)
     action_id = Column(Integer, ForeignKey("actions.id"), nullable=True)
 
@@ -94,7 +94,7 @@ class ROISummary(Base):
     __tablename__ = "roi_summaries"
 
     id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
 
     # Time period
     period = Column(String(20), nullable=False)  # day, week, month, all_time
@@ -151,7 +151,7 @@ class PlaybookROI(Base):
 
     id = Column(Integer, primary_key=True)
     playbook_id = Column(Integer, ForeignKey("playbooks.id"), nullable=False, index=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
 
     # Time period
     period = Column(String(20), nullable=False)  # day, week, month
@@ -190,7 +190,7 @@ class CustomerImpact(Base):
     __tablename__ = "customer_impact"
 
     id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
     customer_id = Column(String(255), nullable=False)  # Salesforce account ID or internal ID
     customer_name = Column(String(255), nullable=False)
     customer_revenue = Column(Float, nullable=True)  # Annual revenue (ARR, etc.)
@@ -228,7 +228,7 @@ class ROIForecast(Base):
     __tablename__ = "roi_forecasts"
 
     id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
 
     # Forecast period
     forecast_month = Column(String(7), nullable=False)  # YYYY-MM

@@ -18,7 +18,7 @@ class CustomerHealthScore(Base):
     __tablename__ = "customer_health_scores"
 
     id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
     customer_id = Column(String(255), nullable=False, index=True)
 
     # Health metrics (0-100)

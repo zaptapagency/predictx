@@ -12,8 +12,8 @@ from typing import List, Optional, Dict, Any
 
 from app.db.models_saas import User
 from app.db.workflow_models import (
-    Workflow, WorkflowAction, WorkflowExecution, ActionExecution,
-    WorkflowStatus, ActionType, WorkflowTrigger, ActionTemplate
+    Workflow, WorkflowAction, WorkflowExecution, WorkflowActionExecution,
+    WorkflowStatus, ActionType, WorkflowTrigger, WorkflowActionTemplate
 )
 from app.db.database import get_db
 from app.services.auth_service import get_current_user
@@ -358,8 +358,8 @@ def get_workflow_executions(
                 "started_at": e.started_at,
                 "completed_at": e.completed_at,
                 "duration_seconds": e.duration_seconds,
-                "actions_count": len(db.query(ActionExecution).filter(
-                    ActionExecution.workflow_execution_id == e.id
+                "actions_count": len(db.query(WorkflowActionExecution).filter(
+                    WorkflowActionExecution.workflow_execution_id == e.id
                 ).all())
             }
             for e in executions
@@ -383,9 +383,9 @@ def get_execution_details(
     if not execution:
         raise HTTPException(status_code=404, detail="Execution not found")
 
-    action_executions = db.query(ActionExecution).filter(
-        ActionExecution.workflow_execution_id == execution_id
-    ).order_by(ActionExecution.sequence).all()
+    action_executions = db.query(WorkflowActionExecution).filter(
+        WorkflowActionExecution.workflow_execution_id == execution_id
+    ).order_by(WorkflowActionExecution.sequence).all()
 
     return {
         "id": execution.id,
@@ -422,13 +422,13 @@ def list_templates(
 ):
     """List action templates"""
 
-    query = db.query(ActionTemplate).filter(
-        (ActionTemplate.organization_id == current_user.organization_id) |
-        (ActionTemplate.is_public == True)
+    query = db.query(WorkflowActionTemplate).filter(
+        (WorkflowActionTemplate.organization_id == current_user.organization_id) |
+        (WorkflowActionTemplate.is_public == True)
     )
 
     if action_type:
-        query = query.filter(ActionTemplate.action_type == ActionType[action_type.upper()])
+        query = query.filter(WorkflowActionTemplate.action_type == ActionType[action_type.upper()])
 
     templates = query.all()
 
@@ -454,10 +454,10 @@ def get_template(
 ):
     """Get template details"""
 
-    template = db.query(ActionTemplate).filter(
-        ActionTemplate.id == template_id,
-        (ActionTemplate.organization_id == current_user.organization_id) |
-        (ActionTemplate.is_public == True)
+    template = db.query(WorkflowActionTemplate).filter(
+        WorkflowActionTemplate.id == template_id,
+        (WorkflowActionTemplate.organization_id == current_user.organization_id) |
+        (WorkflowActionTemplate.is_public == True)
     ).first()
 
     if not template:

@@ -136,11 +136,11 @@ class WorkflowExecution(Base):
     error_message = Column(Text)
 
 
-class ActionExecution(Base):
+class WorkflowActionExecution(Base):
     """
     Record of individual action execution
     """
-    __tablename__ = "action_executions"
+    __tablename__ = "workflow_action_executions"
 
     id = Column(Integer, primary_key=True)
     workflow_execution_id = Column(Integer, ForeignKey("workflow_executions.id"), nullable=False)
@@ -180,12 +180,12 @@ class WorkflowSchedule(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
-class ActionTemplate(Base):
+class WorkflowActionTemplate(Base):
     """
     Reusable templates for common actions
     Email templates, Slack message templates, etc.
     """
-    __tablename__ = "action_templates"
+    __tablename__ = "workflow_action_templates"
 
     id = Column(Integer, primary_key=True)
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)

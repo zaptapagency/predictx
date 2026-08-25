@@ -9,7 +9,8 @@ from pydantic import BaseModel, EmailStr
 from datetime import datetime, timedelta
 import uuid
 
-from app.db.models_saas import User, Organization, TeamMember, TeamInvitation
+from app.db.models_saas import User, Organization
+from app.db.team_models import TeamMember, TeamInvitation
 from app.services.email_service import EmailService
 from app.db.database import get_db
 from app.services.auth_service import get_current_user

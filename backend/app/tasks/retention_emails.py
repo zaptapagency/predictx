@@ -13,7 +13,7 @@ Emails:
 from celery import shared_task
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from app.db.models_saas import User, Prediction, Organization
+from app.db.models_saas import User, PredictionLog as Prediction, Organization
 from app.services.email_service import EmailService
 from app.db.database import SessionLocal
 

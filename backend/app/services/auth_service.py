@@ -2,13 +2,18 @@ from datetime import datetime, timedelta
 from typing import Optional, Tuple
 from jose import JWTError, jwt
 import bcrypt
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from app.config import settings
+from app.database import get_db
 from app.db.models_saas import User, PasswordResetToken
 from app.utils import setup_logger
 import secrets
 
 logger = setup_logger(__name__)
+
+_bearer_scheme = HTTPBearer()
 
 
 class AuthService:
@@ -166,3 +171,37 @@ class AuthService:
         logger.info(f"Password reset for user: {user.email}")
 
         return True
+
+
+# Module-level helpers, used as FastAPI dependencies / plain functions by the
+# feature routers (predictions, playbooks, connectors, etc). Thin wrappers
+# around AuthService so there is a single source of truth for the JWT logic.
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    return AuthService.create_access_token(data, expires_delta)
+
+
+def hash_password(password: str) -> str:
+    return AuthService.hash_password(password)
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+    db: Session = Depends(get_db),
+) -> User:
+    """FastAPI dependency: resolve the bearer token to a logged-in User."""
+    payload = AuthService.verify_token(credentials.credentials)
+    if not payload or "sub" not in payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+        )
+
+    user = db.query(User).filter(User.id == int(payload["sub"])).first()
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or inactive",
+        )
+
+    return user

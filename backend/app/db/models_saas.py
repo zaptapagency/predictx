@@ -229,9 +229,9 @@ class PasswordResetToken(Base):
     expires_at = Column(DateTime)
 
 
-class Prediction(Base):
+class PredictionLog(Base):
     """Store individual predictions"""
-    __tablename__ = "predictions"
+    __tablename__ = "prediction_logs"
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), index=True)
@@ -255,7 +255,7 @@ class Prediction(Base):
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
     # Relationships
-    user = relationship("User", back_populates="predictions")
+    user = relationship("User", back_populates="prediction_logs")
 
 
-User.predictions = relationship("Prediction", back_populates="user")
+User.prediction_logs = relationship("PredictionLog", back_populates="user")

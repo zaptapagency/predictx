@@ -46,7 +46,7 @@ class OnboardingProgress(Base):
     # Properties
     is_completed = Column(Boolean, default=False)
 
-    user = relationship("User", back_populates="onboarding_progress")
+    user = relationship("User")
 
 
 class OnboardingEvent(Base):

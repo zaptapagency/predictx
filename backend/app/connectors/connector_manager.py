@@ -7,7 +7,13 @@ from typing import Dict, Any, Optional, List
 from .base_connector import BaseConnector
 from .salesforce_connector import SalesforceConnector
 from .csv_connector import CSVConnector
-from .snowflake_connector import SnowflakeConnector
+
+# snowflake-connector-python is a heavy optional dependency; the Snowflake
+# connector is only offered when the package is installed.
+try:
+    from .snowflake_connector import SnowflakeConnector
+except ImportError:
+    SnowflakeConnector = None
 
 
 class ConnectorManager:
@@ -18,11 +24,12 @@ class ConnectorManager:
     CONNECTOR_TYPES = {
         "salesforce": SalesforceConnector,
         "csv": CSVConnector,
-        "snowflake": SnowflakeConnector,
         # "segment": SegmentConnector,  # TODO
         # "bigquery": BigQueryConnector,  # TODO
         # "redshift": RedshiftConnector,  # TODO
     }
+    if SnowflakeConnector is not None:
+        CONNECTOR_TYPES["snowflake"] = SnowflakeConnector
 
     @classmethod
     def create_connector(

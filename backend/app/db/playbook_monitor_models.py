@@ -18,7 +18,7 @@ class PlaybookPerformance(Base):
     __tablename__ = "playbook_performance"
 
     id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
     playbook_id = Column(Integer, ForeignKey("playbooks.id"), nullable=False, index=True)
 
     # Usage metrics
@@ -68,7 +68,7 @@ class PlaybookUsageMetric(Base):
 
     id = Column(Integer, primary_key=True)
     playbook_id = Column(Integer, ForeignKey("playbooks.id"), nullable=False, index=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
 
     # Time period
     period_date = Column(DateTime, nullable=False, index=True)  # Day this metric is for

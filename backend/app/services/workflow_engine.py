@@ -14,7 +14,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 from app.db.workflow_models import (
-    Workflow, WorkflowExecution, ActionExecution, WorkflowAction, ExecutionStatus
+    Workflow, WorkflowExecution, WorkflowActionExecution, WorkflowAction, ExecutionStatus
 )
 from app.db.connector_models import DataConnection
 
@@ -75,7 +75,7 @@ class WorkflowEngine:
                         action.condition_expression,
                         trigger_data
                     ):
-                        action_exec = ActionExecution(
+                        action_exec = WorkflowActionExecution(
                             workflow_execution_id=execution.id,
                             action_id=action.id,
                             sequence=action.sequence,
@@ -124,7 +124,7 @@ class WorkflowEngine:
     ) -> Dict[str, Any]:
         """Execute individual action"""
 
-        action_exec = ActionExecution(
+        action_exec = WorkflowActionExecution(
             workflow_execution_id=execution.id,
             action_id=action.id,
             sequence=action.sequence,

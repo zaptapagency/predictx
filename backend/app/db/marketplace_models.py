@@ -36,8 +36,8 @@ class Playbook(Base):
     __tablename__ = "playbooks"
 
     id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False, index=True)
-    creator_id = Column(Integer, ForeignKey("user.id"), nullable=False)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    creator_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     # Playbook info
     name = Column(String(255), nullable=False)
@@ -99,8 +99,8 @@ class PlaybookReview(Base):
 
     id = Column(Integer, primary_key=True)
     playbook_id = Column(Integer, ForeignKey("playbooks.id"), nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("user.id"), nullable=False)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
 
     # Review content
     rating = Column(Integer, nullable=False)  # 1-5 stars
@@ -137,8 +137,8 @@ class PlaybookPurchase(Base):
 
     id = Column(Integer, primary_key=True)
     playbook_id = Column(Integer, ForeignKey("playbooks.id"), nullable=False, index=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False, index=True)
-    purchased_by_id = Column(Integer, ForeignKey("user.id"), nullable=False)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    purchased_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     # Purchase details
     stripe_subscription_id = Column(String(255), nullable=True)  # Stripe sub ID
@@ -179,7 +179,7 @@ class CreatorEarnings(Base):
 
     id = Column(Integer, primary_key=True)
     playbook_id = Column(Integer, ForeignKey("playbooks.id"), nullable=False, index=True)
-    creator_id = Column(Integer, ForeignKey("user.id"), nullable=False, index=True)
+    creator_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
 
     # Revenue
     month = Column(String(7), nullable=False, index=True)  # YYYY-MM format
@@ -226,7 +226,7 @@ class MarketplaceAnalytics(Base):
 
     # Top performers
     top_playbook_id = Column(Integer, ForeignKey("playbooks.id"), nullable=True)
-    top_creator_id = Column(Integer, ForeignKey("user.id"), nullable=True)
+    top_creator_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     # Trends
     new_playbooks_today = Column(Integer, default=0)

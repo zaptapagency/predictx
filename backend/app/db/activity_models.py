@@ -18,8 +18,8 @@ class TeamActivity(Base):
     __tablename__ = "team_activities"
 
     id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("user.id"), nullable=False, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
 
     # Activity details
     activity_type = Column(String(50), nullable=False)  # customer_saved, expansion_closed, achievement_unlocked
@@ -63,7 +63,7 @@ class ActivityReaction(Base):
 
     id = Column(Integer, primary_key=True)
     activity_id = Column(Integer, ForeignKey("team_activities.id"), nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("user.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
 
     # Reaction emoji
     emoji = Column(String(10), nullable=False)  # 👏, ❤️, 🔥, etc

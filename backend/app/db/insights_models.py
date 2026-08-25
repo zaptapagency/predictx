@@ -18,8 +18,8 @@ class Insight(Base):
     __tablename__ = "insights"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("user.id"), nullable=False, index=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
 
     # Insight type
     insight_type = Column(String(50), nullable=False)  # recommendation, reminder, milestone, etc
@@ -59,7 +59,7 @@ class InsightPreference(Base):
     __tablename__ = "insight_preferences"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("user.id"), nullable=False, unique=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True, index=True)
 
     # Notification frequency
     daily_email_enabled = Column(Boolean, default=True)

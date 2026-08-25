@@ -36,8 +36,8 @@ class TeamMember(Base):
     __tablename__ = "team_members"
 
     id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("user.id"), nullable=True, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
 
     name = Column(String(255), nullable=False)
     email = Column(String(255), nullable=True, unique=True, index=True)
@@ -54,8 +54,8 @@ class TeamMember(Base):
     login_count = Column(Integer, default=0)
 
     # Relationships
-    organization = relationship("Organization", back_populates="team_members")
-    user = relationship("User", back_populates="team_members")
+    organization = relationship("Organization")
+    user = relationship("User")
 
     def __repr__(self):
         return f"<TeamMember {self.name} - {self.role}>"
@@ -72,8 +72,8 @@ class TeamInvitation(Base):
     __tablename__ = "team_invitations"
 
     id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False, index=True)
-    invited_by_id = Column(Integer, ForeignKey("user.id"), nullable=False)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    invited_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     email = Column(String(255), nullable=False, index=True)
     name = Column(String(255), nullable=True)
@@ -115,8 +115,8 @@ class TeamActivityLog(Base):
     __tablename__ = "team_activity_logs"
 
     id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), index=True)
-    user_id = Column(Integer, ForeignKey("user.id"), index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
 
     action = Column(String(100), index=True)  # invited_member, viewed_prediction, etc
     resource_type = Column(String(50))         # user, prediction, integration, etc

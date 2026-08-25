@@ -18,7 +18,7 @@ class TeamAdoption(Base):
     __tablename__ = "team_adoption"
 
     id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False, unique=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, unique=True)
 
     # Team metrics
     total_team_size = Column(Integer, default=0)
@@ -57,8 +57,8 @@ class UserAdoption(Base):
     __tablename__ = "user_adoption"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("user.id"), nullable=False, unique=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
 
     # Adoption stage (funnel)
     stage = Column(String(50), default="onboarded")  # onboarded, activated, habit_forming, power_user, churned

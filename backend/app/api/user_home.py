@@ -12,7 +12,7 @@ from app.db.models_saas import User
 from app.db.leaderboard_models import LeaderboardEntry, Achievement, UserStats
 from app.db.roi_models import ImpactRecord
 from app.db.action_models import Action
-from app.db.activity_models import UserActivity
+from app.db.leaderboard_models import UserActivity
 from app.db.database import get_db
 from app.services.auth_service import get_current_user
 

@@ -18,7 +18,7 @@ class QuickWin(Base):
     __tablename__ = "quick_wins"
 
     id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
 
     # Quick win details
     title = Column(String(255), nullable=False)
@@ -61,7 +61,7 @@ class QuickWinExecution(Base):
 
     id = Column(Integer, primary_key=True)
     quick_win_id = Column(Integer, ForeignKey("quick_wins.id"), nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("user.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
 
     # Execution details
     target_count = Column(Integer, nullable=False)  # How many entities targeted

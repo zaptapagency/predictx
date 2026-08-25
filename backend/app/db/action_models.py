@@ -52,7 +52,7 @@ class Action(Base):
     __tablename__ = "actions"
 
     id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
     playbook_id = Column(Integer, ForeignKey("playbooks.id"), nullable=True)
     prediction_id = Column(String(255), nullable=True, index=True)  # Link to prediction
 
@@ -79,7 +79,7 @@ class Action(Base):
     recommended_message = Column(Text, nullable=True)
 
     # Execution
-    assigned_to_id = Column(Integer, ForeignKey("user.id"), nullable=True)
+    assigned_to_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     due_at = Column(DateTime, nullable=True)
     executed_at = Column(DateTime, nullable=True)
     result = Column(JSON, nullable=True)  # What happened when action was taken
@@ -110,8 +110,8 @@ class ActionExecution(Base):
 
     id = Column(Integer, primary_key=True)
     action_id = Column(Integer, ForeignKey("actions.id"), nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("user.id"), nullable=False)
-    organization_id = Column(Integer, ForeignKey("organization.id"), index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), index=True)
 
     # Execution details
     execution_type = Column(String(50))  # immediate, scheduled, bulk, auto
@@ -146,8 +146,8 @@ class ActionTemplate(Base):
     __tablename__ = "action_templates"
 
     id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=True)
-    created_by_id = Column(Integer, ForeignKey("user.id"), nullable=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
+    created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     # Template info
     name = Column(String(255), nullable=False)
@@ -187,8 +187,8 @@ class QuickAction(Base):
     __tablename__ = "quick_actions"
 
     id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False, index=True)
-    created_by_id = Column(Integer, ForeignKey("user.id"), nullable=False)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    created_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     # Quick action definition
     name = Column(String(255), nullable=False)  # "Email at-risk customers"

@@ -10,6 +10,12 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.utils import setup_logger
 from app.api import saas_auth, saas_subscriptions, saas_api_keys, saas_user, saas_admin, webhooks
+from app.api import (
+    actions, activity_feed, adoption, connectors, copilot, heatmap, insights,
+    leaderboard, marketplace, oauth, onboarding, playbook_monitor, predictions,
+    predictions_api, quickwins, roi, sample_predictions, team_invitations,
+    user_home, workflows,
+)
 from app.database import get_db, engine
 from app.db.models_saas import User
 
@@ -66,8 +72,33 @@ def run_migrations():
     # Fallback: ensure tables exist even when alembic is unavailable or a no-op.
     # create_all only creates what is missing, so this is safe to run every boot.
     try:
-        from app.db.models_saas import Base
+        from sqlalchemy import inspect, text
         from app.database import engine
+        # Importing the feature models registers every table on the shared Base.
+        from app.db.database import Base
+        from app.db import (  # noqa: F401 - imported for table registration
+            action_models, activity_models, adoption_models, connector_models,
+            copilot_models, heatmap_models, insights_models, leaderboard_models,
+            marketplace_models, onboarding_models, playbook_monitor_models,
+            prediction_models, quickwin_models, roi_models, team_models,
+            workflow_models,
+        )
+
+        # One-time reconciliation: an earlier deploy created "predictions" from
+        # the old SaaS model (now prediction_logs). If that stale, empty table
+        # is still present without the ML schema's model_id column, drop it so
+        # create_all can build the real predictions table.
+        inspector = inspect(engine)
+        if "predictions" in inspector.get_table_names():
+            cols = {c["name"] for c in inspector.get_columns("predictions")}
+            if "model_id" not in cols:
+                with engine.connect() as conn:
+                    count = conn.execute(text("SELECT COUNT(*) FROM predictions")).scalar()
+                    if count == 0:
+                        conn.execute(text("DROP TABLE predictions"))
+                        conn.commit()
+                        logger.info("Dropped stale legacy 'predictions' table")
+
         Base.metadata.create_all(bind=engine)
         logger.info("✅ Schema ensured via SQLAlchemy create_all")
     except Exception as e:
@@ -95,6 +126,28 @@ def create_app() -> FastAPI:
     app.include_router(saas_user.router)
     app.include_router(saas_admin.router)
     app.include_router(webhooks.router)
+
+    # Product feature routers
+    app.include_router(actions.router)
+    app.include_router(activity_feed.router)
+    app.include_router(adoption.router)
+    app.include_router(connectors.router)
+    app.include_router(copilot.router)
+    app.include_router(heatmap.router)
+    app.include_router(insights.router)
+    app.include_router(leaderboard.router)
+    app.include_router(marketplace.router)
+    app.include_router(oauth.router)
+    app.include_router(onboarding.router)
+    app.include_router(playbook_monitor.router)
+    app.include_router(predictions.router)
+    app.include_router(predictions_api.router)
+    app.include_router(quickwins.router)
+    app.include_router(roi.router)
+    app.include_router(sample_predictions.router)
+    app.include_router(team_invitations.router)
+    app.include_router(user_home.router)
+    app.include_router(workflows.router)
 
     # Startup event - Run migrations
     @app.on_event("startup")

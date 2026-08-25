@@ -39,8 +39,8 @@ class LeaderboardEntry(Base):
     __tablename__ = "leaderboard_entries"
 
     id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("user.id"), nullable=False, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
 
     # Time period
     period = Column(String(20), nullable=False)  # day, week, month, all_time
@@ -93,8 +93,8 @@ class Achievement(Base):
     __tablename__ = "achievements"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("user.id"), nullable=False, index=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
 
     # Achievement type
     achievement_type = Column(String(50), nullable=False, index=True)
@@ -140,8 +140,8 @@ class UserStats(Base):
     __tablename__ = "user_stats"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("user.id"), nullable=False, unique=True, index=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
 
     # All-time stats
     total_predictions = Column(Integer, default=0)
@@ -199,8 +199,8 @@ class UserActivity(Base):
     __tablename__ = "user_activity"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("user.id"), nullable=False, index=True)
-    organization_id = Column(Integer, ForeignKey("organization.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
 
     # Activity type
     activity_type = Column(String(50), nullable=False)  # customer_saved, expansion_closed, etc
