@@ -174,6 +174,22 @@
       color: #991b1b;
       display: block;
     }
+    .toggle-link {
+      margin-top: 15px;
+      font-size: 0.9em;
+      opacity: 0.9;
+    }
+    .toggle-link a {
+      color: white;
+      font-weight: bold;
+      text-decoration: underline;
+    }
+    #loginSection .signup-form {
+      flex-direction: column;
+    }
+    #loginSection .signup-form input {
+      width: 100%;
+    }
   </style>
 </head>
 <body>
@@ -181,7 +197,7 @@
     <h1>🚀 ForecastX</h1>
     <p class="tagline">Predictive Customer Analytics Platform</p>
 
-    <div class="signup-section">
+    <div class="signup-section" id="signupSection">
       <h2>Get Started in Seconds</h2>
       <p>Join hundreds of companies predicting customer churn with AI</p>
       <div class="signup-form">
@@ -189,6 +205,19 @@
         <button onclick="handleSignup()">Start Free Trial</button>
       </div>
       <div class="message" id="signupMessage"></div>
+      <p class="toggle-link">Already have an account? <a href="#" onclick="showLogin(event)">Log in</a></p>
+    </div>
+
+    <div class="signup-section" id="loginSection" style="display:none;">
+      <h2>Welcome Back</h2>
+      <p>Log in to your ForecastX account</p>
+      <div class="signup-form">
+        <input type="email" id="loginEmailInput" placeholder="Email" required>
+        <input type="password" id="loginPasswordInput" placeholder="Password" required>
+        <button onclick="handleLogin()">Log In</button>
+      </div>
+      <div class="message" id="loginMessage"></div>
+      <p class="toggle-link">Don't have an account? <a href="#" onclick="showSignup(event)">Sign up</a></p>
     </div>
 
     <div class="status">
@@ -306,6 +335,74 @@
     // Allow Enter key to submit
     document.getElementById('emailInput')?.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') handleSignup();
+    });
+
+    function showLogin(e) {
+      e.preventDefault();
+      document.getElementById('signupSection').style.display = 'none';
+      document.getElementById('loginSection').style.display = 'block';
+    }
+
+    function showSignup(e) {
+      e.preventDefault();
+      document.getElementById('loginSection').style.display = 'none';
+      document.getElementById('signupSection').style.display = 'block';
+    }
+
+    async function handleLogin() {
+      const email = document.getElementById('loginEmailInput').value;
+      const password = document.getElementById('loginPasswordInput').value;
+      const messageDiv = document.getElementById('loginMessage');
+      const button = event.target;
+
+      if (!email || !password) {
+        messageDiv.textContent = '⚠️ Please enter email and password';
+        messageDiv.className = 'message error';
+        return;
+      }
+
+      button.disabled = true;
+      button.textContent = 'Logging in...';
+      messageDiv.textContent = '';
+
+      try {
+        const response = await fetch(`${API_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.access_token) {
+          localStorage.setItem('access_token', data.access_token);
+          localStorage.setItem('refresh_token', data.refresh_token);
+          localStorage.setItem('api_key', data.access_token);
+          localStorage.setItem('user_id', data.user.id);
+          localStorage.setItem('email', data.user.email);
+
+          messageDiv.textContent = `✅ Welcome back!`;
+          messageDiv.className = 'message success';
+
+          setTimeout(() => {
+            window.location.href = '/predictx/dashboard.html';
+          }, 1000);
+        } else {
+          messageDiv.textContent = `⚠️ ${data.detail || data.message || 'Login failed. Check your email and password.'}`;
+          messageDiv.className = 'message error';
+          button.disabled = false;
+          button.textContent = 'Log In';
+        }
+      } catch (error) {
+        messageDiv.textContent = `❌ Connection error: ${error.message}`;
+        messageDiv.className = 'message error';
+        button.disabled = false;
+        button.textContent = 'Log In';
+      }
+    }
+
+    document.getElementById('loginPasswordInput')?.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') handleLogin();
     });
   </script>
 </body>
