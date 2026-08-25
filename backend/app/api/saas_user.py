@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
+from datetime import datetime
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 from app.db.models_saas import User, Organization
@@ -20,8 +21,8 @@ class UserResponse(BaseModel):
     is_verified: bool
     is_active: bool
     organization_id: Optional[int] = None
-    last_login: Optional[str] = None
-    created_at: str
+    last_login: Optional[datetime] = None
+    created_at: datetime
 
     class Config:
         orm_mode = True
@@ -42,7 +43,7 @@ class OrganizationResponse(BaseModel):
     name: str
     slug: str
     owner_id: int
-    created_at: str
+    created_at: datetime
 
     class Config:
         orm_mode = True

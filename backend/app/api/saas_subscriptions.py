@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from datetime import datetime
+from typing import Optional
 from pydantic import BaseModel
 from typing import List
 from app.db.models_saas import User, Subscription, Invoice, SubscriptionTier
@@ -20,12 +22,12 @@ class UpgradeSubscriptionRequest(BaseModel):
 
 class SubscriptionResponse(BaseModel):
     id: int
-    tier: str
+    tier: SubscriptionTier
     status: str
     monthly_predictions_limit: int
     api_calls_limit: int
-    current_period_start: str = None
-    current_period_end: str = None
+    current_period_start: Optional[datetime] = None
+    current_period_end: Optional[datetime] = None
 
     class Config:
         orm_mode = True
@@ -36,9 +38,9 @@ class InvoiceResponse(BaseModel):
     amount: float
     currency: str
     status: str
-    invoice_date: str
-    paid_at: str = None
-    invoice_pdf_url: str = None
+    invoice_date: datetime
+    paid_at: Optional[datetime] = None
+    invoice_pdf_url: Optional[str] = None
 
     class Config:
         orm_mode = True
