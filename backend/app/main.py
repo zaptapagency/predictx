@@ -101,6 +101,28 @@ def run_migrations():
 
         Base.metadata.create_all(bind=engine)
         logger.info("✅ Schema ensured via SQLAlchemy create_all")
+
+        # Backfill: users created before signup auto-created organizations
+        # need one so the multi-tenant feature endpoints work for them.
+        from app.database import SessionLocal
+        from app.db.models_saas import User, Organization
+        db = SessionLocal()
+        try:
+            orphans = db.query(User).filter(User.organization_id.is_(None)).all()
+            for u in orphans:
+                org = Organization(
+                    name=f"{u.full_name or u.username}'s Team",
+                    slug=f"{u.username}-{u.id}",
+                    owner_id=u.id,
+                )
+                db.add(org)
+                db.flush()
+                u.organization_id = org.id
+            if orphans:
+                db.commit()
+                logger.info(f"Backfilled organizations for {len(orphans)} users")
+        finally:
+            db.close()
     except Exception as e:
         logger.error(f"Schema creation failed: {e}")
         raise

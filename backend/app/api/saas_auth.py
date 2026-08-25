@@ -130,6 +130,25 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
             print(f"[ERROR] Refresh failed: {e}")
             raise Exception(f"Refresh failed: {e}")
 
+        # Step 7b: Every user needs an organization (multi-tenant features
+        # key on organization_id). Create a personal one on signup.
+        try:
+            org = Organization(
+                name=f"{request.full_name or request.username}'s Team",
+                slug=f"{request.username}-{user.id}",
+                owner_id=user.id,
+            )
+            db.add(org)
+            db.commit()
+            db.refresh(org)
+            user.organization_id = org.id
+            db.commit()
+            print(f"[DEBUG] Organization {org.id} created for user {user.id}")
+        except Exception as e:
+            db.rollback()
+            print(f"[ERROR] Organization creation failed: {e}")
+            raise Exception(f"Organization creation failed: {e}")
+
         # Step 8: Create tokens
         try:
             access_token = AuthService.create_access_token({"sub": str(user.id), "email": user.email})
