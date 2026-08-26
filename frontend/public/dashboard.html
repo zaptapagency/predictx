@@ -136,6 +136,7 @@
     <h1>🚀 ForecastX</h1>
     <div class="user-info">
       <span id="user-email"></span>
+      <button class="logout-btn" id="demo-btn" onclick="loadDemoData()">✨ Load Demo Data</button>
       <button class="logout-btn" onclick="logout()">Logout</button>
     </div>
   </header>
@@ -159,6 +160,21 @@
     function logout() {
       localStorage.clear();
       window.location.href = 'index.html';
+    }
+
+    async function loadDemoData() {
+      const btn = document.getElementById('demo-btn');
+      btn.disabled = true;
+      btn.textContent = '⏳ Loading demo data…';
+      const res = await post('/api/demo/seed', {});
+      btn.disabled = false;
+      if (res.ok) {
+        btn.textContent = '✅ Demo data loaded';
+        loadTab(currentTab);
+        setTimeout(() => { btn.textContent = '✨ Load Demo Data'; }, 4000);
+      } else {
+        btn.textContent = '❌ Failed — retry';
+      }
     }
 
     async function get(path) {
