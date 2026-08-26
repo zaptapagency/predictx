@@ -109,7 +109,11 @@ def get_user_home(
     recent_wins = [
         {
             "title": a.activity_title,
-            "impact": f"${a.revenue_impact:,.0f}" if a.revenue_impact else f"+{a.customers_affected} customers",
+            "impact": (
+                f"${a.revenue_impact:,.0f}" if a.revenue_impact
+                else f"+{a.customers_affected} customers" if a.customers_affected
+                else "🎉"
+            ),
             "when": a.created_at.strftime("%m/%d")
         }
         for a in recent_activities
