@@ -99,7 +99,15 @@ def create_workflow(
         }
 
     except KeyError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid enum value: {e}")
+        triggers = ", ".join(t.value for t in WorkflowTrigger)
+        action_types = ", ".join(a.value for a in ActionType)
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Invalid value {e}. Valid trigger_type: {triggers}. "
+                f"Valid action type: {action_types}."
+            ),
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
