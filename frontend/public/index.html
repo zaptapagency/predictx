@@ -202,6 +202,7 @@
       <p>Join hundreds of companies predicting customer churn with AI</p>
       <div class="signup-form">
         <input type="email" id="emailInput" placeholder="Enter your email" required>
+        <input type="password" id="passwordInput" placeholder="Choose a password (8+ characters)" minlength="8" required>
         <button onclick="handleSignup()">Start Free Trial</button>
       </div>
       <div class="message" id="signupMessage"></div>
@@ -276,11 +277,18 @@
 
     async function handleSignup() {
       const email = document.getElementById('emailInput').value;
+      const password = document.getElementById('passwordInput').value;
       const messageDiv = document.getElementById('signupMessage');
       const button = event.target;
 
       if (!email) {
         messageDiv.textContent = '⚠️ Please enter your email';
+        messageDiv.className = 'message error';
+        return;
+      }
+
+      if (!password || password.length < 8) {
+        messageDiv.textContent = '⚠️ Password must be at least 8 characters';
         messageDiv.className = 'message error';
         return;
       }
@@ -298,7 +306,7 @@
           body: JSON.stringify({
             email: email,
             username: email.split('@')[0] + Date.now().toString().slice(-4),
-            password: 'ForecastX123!@#',
+            password: password,
             full_name: email.split('@')[0].replace(/[^a-zA-Z]/g, ' ').trim() || 'User'
           })
         });

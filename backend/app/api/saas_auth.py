@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, constr
 from datetime import datetime
 from app.db.models_saas import User, Organization
 from app.services.auth_service import AuthService
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 class SignupRequest(BaseModel):
     email: EmailStr
     username: str
-    password: str
+    password: constr(min_length=8)
     full_name: str
 
 
@@ -32,7 +32,7 @@ class PasswordResetRequest(BaseModel):
 
 class PasswordResetConfirm(BaseModel):
     token: str
-    new_password: str
+    new_password: constr(min_length=8)
 
 
 class VerifyEmailRequest(BaseModel):

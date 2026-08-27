@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from datetime import datetime
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, constr
 from typing import Optional
 from app.db.models_saas import User, Organization
 from app.database import get_db
@@ -35,7 +35,7 @@ class UpdateProfileRequest(BaseModel):
 
 class ChangePasswordRequest(BaseModel):
     old_password: str
-    new_password: str
+    new_password: constr(min_length=8)
 
 
 class OrganizationResponse(BaseModel):
