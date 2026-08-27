@@ -79,21 +79,42 @@ def delete_test_accounts(
     from sqlalchemy import text
     from app.db.database import Base
 
-    # Delete child rows first: sorted_tables is parents-first, so walk it
-    # in reverse and clear anything pointing at these users or orgs.
-    for table in reversed(Base.metadata.sorted_tables):
-        if table.name in ("users", "organizations"):
+    def children_of(table_name):
+        """Tables/columns holding a foreign key into table_name."""
+        for t in Base.metadata.sorted_tables:
+            if t.name in ("users", "organizations"):
+                continue
+            for c in t.columns:
+                for fk in c.foreign_keys:
+                    if fk.column.table.name == table_name:
+                        yield t.name, c.name
+
+    def purge(table_name, col_name, ids, depth=0):
+        """Delete rows in table_name matching ids, clearing descendants first."""
+        if not ids or depth > 8:
+            return
+        rows = db.execute(
+            text(f'SELECT id FROM "{table_name}" WHERE "{col_name}" = ANY(:ids)'),
+            {"ids": list(ids)},
+        ).fetchall()
+        row_ids = [r[0] for r in rows]
+        if not row_ids:
+            return
+        for child_table, child_col in children_of(table_name):
+            if child_table == table_name and child_col == col_name:
+                continue  # avoid trivial self-recursion
+            purge(child_table, child_col, row_ids, depth + 1)
+        db.execute(
+            text(f'DELETE FROM "{table_name}" WHERE id = ANY(:ids)'),
+            {"ids": row_ids},
+        )
+
+    # Clear everything hanging off these users and their organizations.
+    for root, ids in (("users", user_ids), ("organizations", org_ids)):
+        if not ids:
             continue
-        for col in table.columns:
-            for fk in col.foreign_keys:
-                target = fk.column.table.name
-                ids = user_ids if target == "users" else org_ids if target == "organizations" else None
-                if not ids:
-                    continue
-                db.execute(
-                    text(f'DELETE FROM "{table.name}" WHERE "{col.name}" = ANY(:ids)'),
-                    {"ids": ids},
-                )
+        for table_name, col_name in list(children_of(root)):
+            purge(table_name, col_name, ids)
 
     # Break the users <-> organizations cycle before deleting either side.
     if org_ids:
