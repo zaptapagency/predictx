@@ -324,7 +324,7 @@
           messageDiv.className = 'message success';
 
           setTimeout(() => {
-            window.location.href = '/predictx/dashboard.html';
+            window.location.href = 'dashboard.html';
           }, 2000);
         } else {
           messageDiv.textContent = `⚠️ ${data.message || data.detail || 'Signup failed. Please try again.'}`;
@@ -393,7 +393,7 @@
           messageDiv.className = 'message success';
 
           setTimeout(() => {
-            window.location.href = '/predictx/dashboard.html';
+            window.location.href = 'dashboard.html';
           }, 1000);
         } else {
           messageDiv.textContent = `⚠️ ${data.detail || data.message || 'Login failed. Check your email and password.'}`;
