@@ -59,31 +59,55 @@ def delete_test_accounts(
 ):
     """Delete accounts on the reserved test domain and their organizations."""
     users = db.query(User).filter(User.email.like(f"%{TEST_DOMAIN}")).all()
+    # Belt-and-braces: never touch anything off the reserved test domain.
+    users = [u for u in users if u.email.endswith(TEST_DOMAIN)]
+    if not users:
+        return {"deleted_users": 0, "deleted_organizations": 0, "accounts": []}
 
-    deleted, org_ids = [], set()
-    for u in users:
-        # Belt-and-braces: never delete anything off the test domain.
-        if not u.email.endswith(TEST_DOMAIN):
+    user_ids = [u.id for u in users]
+    deleted = [{"id": u.id, "email": u.email} for u in users]
+
+    # Only drop organizations whose every member is being deleted.
+    candidate_orgs = {u.organization_id for u in users if u.organization_id}
+    org_ids = [
+        oid for oid in candidate_orgs
+        if db.query(User).filter(
+            User.organization_id == oid, ~User.id.in_(user_ids)
+        ).count() == 0
+    ]
+
+    from sqlalchemy import text
+    from app.db.database import Base
+
+    # Delete child rows first: sorted_tables is parents-first, so walk it
+    # in reverse and clear anything pointing at these users or orgs.
+    for table in reversed(Base.metadata.sorted_tables):
+        if table.name in ("users", "organizations"):
             continue
-        deleted.append({"id": u.id, "email": u.email})
-        if u.organization_id:
-            org_ids.add(u.organization_id)
-        db.delete(u)
-    db.flush()
+        for col in table.columns:
+            for fk in col.foreign_keys:
+                target = fk.column.table.name
+                ids = user_ids if target == "users" else org_ids if target == "organizations" else None
+                if not ids:
+                    continue
+                db.execute(
+                    text(f'DELETE FROM "{table.name}" WHERE "{col.name}" = ANY(:ids)'),
+                    {"ids": ids},
+                )
 
-    # Drop organizations that no longer have any members.
-    orgs_deleted = []
-    for oid in org_ids:
-        remaining = db.query(User).filter(User.organization_id == oid).count()
-        if remaining == 0:
-            org = db.query(Organization).filter(Organization.id == oid).first()
-            if org:
-                orgs_deleted.append(oid)
-                db.delete(org)
+    # Break the users <-> organizations cycle before deleting either side.
+    if org_ids:
+        db.execute(
+            text('UPDATE organizations SET owner_id = NULL WHERE owner_id = ANY(:ids)'),
+            {"ids": user_ids},
+        )
+    db.execute(text('DELETE FROM users WHERE id = ANY(:ids)'), {"ids": user_ids})
+    if org_ids:
+        db.execute(text('DELETE FROM organizations WHERE id = ANY(:ids)'), {"ids": org_ids})
 
     db.commit()
     return {
         "deleted_users": len(deleted),
-        "deleted_organizations": len(orgs_deleted),
+        "deleted_organizations": len(org_ids),
         "accounts": deleted,
     }
