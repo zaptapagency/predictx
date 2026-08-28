@@ -36,17 +36,17 @@ jobs:
           - 6379:6379
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - name: Install dependencies
         run: |
           cd backend
-          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
       - name: Run pytest
         env:
@@ -55,10 +55,11 @@ jobs:
           PYTHONPATH: .
         run: |
           cd backend
-          pytest tests/ -v --cov=app
+          pytest tests/ -v --cov=app --cov-report=xml
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
+        continue-on-error: true
         with:
           files: ./backend/coverage.xml
           flags: backend
@@ -67,10 +68,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: "18"
 
@@ -82,4 +83,4 @@ jobs:
       - name: Run tests
         run: |
           cd frontend
-          npm test -- --coverage --watchAll=false --passWithNoTests
+          npm test
