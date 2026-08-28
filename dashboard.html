@@ -290,6 +290,155 @@
       return false;
     }
 
+    function trainingPanel() {
+      return `<div class="panel"><h3 style="color:#4c5fd7;margin-bottom:6px">Train a model on your data</h3>
+        <div class="subtitle" style="margin-bottom:10px">Pick an uploaded data source and the column recording the outcome you want to predict (e.g. a <code>churned</code> column of yes/no values).</div>
+        <form class="inline" onsubmit="return trainModel(event)">
+          <select id="tr-source" onchange="loadLabelOptions()"><option value="">Loading sources…</option></select>
+          <select id="tr-label"><option value="">Select a data source first</option></select>
+          <select id="tr-algo">
+            <option value="gradient_boosting">Gradient boosting</option>
+            <option value="random_forest">Random forest</option>
+            <option value="logistic_regression">Logistic regression</option>
+          </select>
+          <button type="submit">Train</button>
+        </form>
+        <div class="form-msg" id="tr-msg"></div>
+        <div id="tr-result"></div>
+      </div>
+      <div class="panel"><h3 style="color:#4c5fd7;margin-bottom:6px">Score customers</h3>
+        <div class="subtitle" style="margin-bottom:10px">Run a trained model over your customers to produce predictions.</div>
+        <form class="inline" onsubmit="return scoreModel(event)">
+          <select id="sc-model"><option value="">Loading models…</option></select>
+          <button type="submit">Score all customers</button>
+        </form>
+        <div class="form-msg" id="sc-msg"></div>
+      </div>`;
+    }
+
+    async function initTraining() {
+      try {
+        const sources = await get('/api/connectors/sources');
+        const list = Array.isArray(sources) ? sources : (sources.sources || []);
+        const sel = document.getElementById('tr-source');
+        if (!sel) return;
+        sel.innerHTML = list.length
+          ? '<option value="">Select data source…</option>' + list.map(s =>
+              `<option value="${s.id}">${esc(s.name)} (${s.record_count || 0} rows)</option>`).join('')
+          : '<option value="">No data uploaded yet — use the Connectors tab</option>';
+      } catch (e) { /* leave placeholder */ }
+
+      try {
+        const models = await get('/api/predictions/models');
+        const sel = document.getElementById('sc-model');
+        if (!sel) return;
+        const list = models.models || [];
+        sel.innerHTML = list.length
+          ? list.map(m => `<option value="${m.id}">${esc(m.name)} (${m.algorithm})</option>`).join('')
+          : '<option value="">No trained models yet</option>';
+      } catch (e) { /* leave placeholder */ }
+    }
+
+    async function loadLabelOptions() {
+      const srcId = document.getElementById('tr-source').value;
+      const labelSel = document.getElementById('tr-label');
+      const msg = document.getElementById('tr-msg');
+      msg.textContent = '';
+      if (!srcId) { labelSel.innerHTML = '<option value="">Select a data source first</option>'; return; }
+      labelSel.innerHTML = '<option value="">Checking columns…</option>';
+      try {
+        const d = await get('/api/training/candidates/' + srcId);
+        if (!d.label_candidates.length) {
+          labelSel.innerHTML = '<option value="">No outcome column found</option>';
+          msg.className = 'form-msg err';
+          msg.textContent = d.note || 'This data has no column that looks like a yes/no outcome.';
+          return;
+        }
+        labelSel.innerHTML = d.label_candidates.map(c =>
+          `<option value="${esc(c.column)}">${esc(c.column)} — ${c.positives} yes / ${c.negatives} no</option>`).join('');
+        if (!d.ready_to_train) {
+          msg.className = 'form-msg err';
+          msg.textContent = `Only ${d.rows} rows — at least 20 are needed to train.`;
+        } else {
+          msg.className = 'form-msg';
+          msg.textContent = `${d.rows} rows, ${d.numeric_features.length} numeric columns available as features.`;
+        }
+      } catch (err) {
+        labelSel.innerHTML = '<option value="">Could not read columns</option>';
+        msg.className = 'form-msg err';
+        msg.textContent = err.message;
+      }
+    }
+
+    async function trainModel(e) {
+      e.preventDefault();
+      const msg = document.getElementById('tr-msg');
+      const out = document.getElementById('tr-result');
+      const srcId = document.getElementById('tr-source').value;
+      const label = document.getElementById('tr-label').value;
+      if (!srcId || !label) {
+        msg.className = 'form-msg err';
+        msg.textContent = 'Pick a data source and an outcome column.';
+        return false;
+      }
+      msg.className = 'form-msg';
+      msg.textContent = 'Training…';
+      out.innerHTML = '';
+      const res = await post('/api/training/train', {
+        data_source_id: Number(srcId),
+        label_column: label,
+        algorithm: document.getElementById('tr-algo').value
+      });
+      if (!res.ok) {
+        msg.className = 'form-msg err';
+        msg.textContent = typeof res.data.detail === 'string' ? res.data.detail : JSON.stringify(res.data.detail);
+        return false;
+      }
+      const d = res.data;
+      msg.className = 'form-msg ok';
+      msg.textContent = `Trained "${d.name}" on ${d.trained_on.rows} rows.`;
+      const m = d.metrics;
+      out.innerHTML =
+        '<div class="stat-grid" style="margin-top:14px">' +
+        [['accuracy', m.accuracy], ['precision', m.precision], ['recall', m.recall], ['auc roc', m.auc_roc]]
+          .map(([k, v]) => `<div class="stat"><div class="value">${v === null ? '—' : (v * 100).toFixed(1) + '%'}</div><div class="label">${k}</div></div>`).join('') +
+        '</div>' +
+        `<div class="subtitle" style="margin-top:6px">Measured on a held-out test split of ${d.trained_on.test_rows} rows.</div>` +
+        '<h4 style="color:#4c5fd7;margin:14px 0 6px">What drives the prediction</h4>' +
+        '<dl>' + Object.entries(d.feature_importance).map(([f, i]) =>
+          `<dt>${esc(f)}</dt><dd>${(i * 100).toFixed(1)}%</dd>`).join('') + '</dl>' +
+        (d.warnings.length
+          ? '<div class="error" style="margin-top:12px">' + d.warnings.map(esc).join('<br>') + '</div>'
+          : '');
+      initTraining();
+      return false;
+    }
+
+    async function scoreModel(e) {
+      e.preventDefault();
+      const msg = document.getElementById('sc-msg');
+      const modelId = document.getElementById('sc-model').value;
+      if (!modelId) {
+        msg.className = 'form-msg err';
+        msg.textContent = 'Train a model first.';
+        return false;
+      }
+      msg.className = 'form-msg';
+      msg.textContent = 'Scoring…';
+      const res = await post('/api/training/score', { model_id: Number(modelId) });
+      if (!res.ok) {
+        msg.className = 'form-msg err';
+        msg.textContent = typeof res.data.detail === 'string' ? res.data.detail : JSON.stringify(res.data.detail);
+        return false;
+      }
+      const d = res.data;
+      const r = d.risk_distribution;
+      msg.className = 'form-msg ok';
+      msg.textContent = `Scored ${d.customers_scored} customers — ${r.critical} critical, ${r.high} high, ${r.medium} medium, ${r.low} low.`;
+      setTimeout(() => loadTab(currentTab), 1200);
+      return false;
+    }
+
     function csvUploadForm() {
       return `<div class="panel"><h3 style="color:#4c5fd7;margin-bottom:6px">Upload customer data (CSV)</h3>
         <div class="subtitle" style="margin-bottom:10px">First row must be column headers. We detect the customer ID column automatically.</div>
@@ -374,7 +523,7 @@
     const TABS = [
       { id: 'home',        icon: '🏠', name: 'Home',          sub: 'Your personalized overview',            path: '/api/user/home' },
       { id: 'onboarding',  icon: '🚀', name: 'Onboarding',    sub: 'Your setup progress',                   path: '/api/onboarding/progress' },
-      { id: 'predictions', icon: '🔮', name: 'Predictions',   sub: 'Models and prediction history',         path: '/api/predictions/predictions', extraPaths: ['/api/predictions/models'] },
+      { id: 'predictions', icon: '🔮', name: 'Predictions',   sub: 'Train models and score your customers', path: '/api/predictions/predictions', extraPaths: ['/api/predictions/models'], widget: trainingPanel, init: initTraining },
       { id: 'actions',     icon: '⚡', name: 'Action Center', sub: 'Prioritized actions to take now',       path: '/api/actions/dashboard' },
       { id: 'quickwins',   icon: '🎯', name: 'Quick Wins',    sub: 'One-click high-impact plays',           path: '/api/quick-wins/available' },
       { id: 'playbooks',   icon: '📚', name: 'Playbooks',     sub: 'Automated workflows',                   path: '/api/workflows/', widget: workflowCreateForm },
@@ -418,6 +567,7 @@
           else h += renderData(r);
         }
         el.innerHTML = h;
+        if (tab.init) tab.init();
       } catch (err) {
         el.innerHTML = '<div class="error">' + esc(err.message) + '</div>';
       }
