@@ -290,6 +290,50 @@
       return false;
     }
 
+    function csvUploadForm() {
+      return `<div class="panel"><h3 style="color:#4c5fd7;margin-bottom:6px">Upload customer data (CSV)</h3>
+        <div class="subtitle" style="margin-bottom:10px">First row must be column headers. We detect the customer ID column automatically.</div>
+        <form class="inline" onsubmit="return uploadCsv(event)">
+          <input type="file" id="csv-file" accept=".csv" required>
+          <input type="text" id="csv-name" placeholder="Name (optional)">
+          <button type="submit">Upload</button>
+        </form><div class="form-msg" id="csv-msg"></div></div>`;
+    }
+
+    async function uploadCsv(e) {
+      e.preventDefault();
+      const msg = document.getElementById('csv-msg');
+      const fileInput = document.getElementById('csv-file');
+      if (!fileInput.files.length) return false;
+      const fd = new FormData();
+      fd.append('file', fileInput.files[0]);
+      const nm = document.getElementById('csv-name').value;
+      if (nm) fd.append('name', nm);
+
+      msg.className = 'form-msg';
+      msg.textContent = 'Uploading…';
+      try {
+        const r = await fetch(API + '/api/connectors/csv/upload', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token },
+          body: fd
+        });
+        const d = await r.json();
+        if (r.ok) {
+          msg.className = 'form-msg ok';
+          msg.textContent = `${d.message} — ID column: ${d.id_column}, ${d.numeric_columns.length} numeric field(s) available for predictions.`;
+          loadTab(currentTab);
+        } else {
+          msg.className = 'form-msg err';
+          msg.textContent = typeof d.detail === 'string' ? d.detail : JSON.stringify(d.detail);
+        }
+      } catch (err) {
+        msg.className = 'form-msg err';
+        msg.textContent = err.message;
+      }
+      return false;
+    }
+
     function workflowCreateForm() {
       return `<div class="panel"><h3 style="color:#4c5fd7;margin-bottom:6px">Create a playbook</h3>
         <form class="inline" onsubmit="return createWorkflow(event)">
@@ -343,7 +387,7 @@
       { id: 'adoption',    icon: '📈', name: 'Adoption',      sub: 'Who on the team is getting value',      path: '/api/adoption/team-summary' },
       { id: 'team',        icon: '👥', name: 'Team',          sub: 'Members and invitations',               path: '/api/teams/members', extraPaths: ['/api/teams/pending-invitations'], widget: teamInviteForm },
       { id: 'marketplace', icon: '🛒', name: 'Marketplace',   sub: 'Playbook templates from the community', path: '/api/marketplace/playbooks' },
-      { id: 'connectors',  icon: '🔌', name: 'Connectors',    sub: 'Data sources you can plug in',          path: '/api/connectors/types', extraPaths: ['/api/connectors/connections'] },
+      { id: 'connectors',  icon: '🔌', name: 'Connectors',    sub: 'Upload your data or connect a source',  path: '/api/connectors/csv/customers', extraPaths: ['/api/connectors/connections', '/api/connectors/types'], widget: csvUploadForm },
     ];
 
     let currentTab = TABS[0];
