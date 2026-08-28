@@ -278,3 +278,20 @@ class TrainingRun(Base):
     notes = Column(Text)
 
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ModelArtifact(Base):
+    """
+    Serialized trained model, kept out of the Model row so the metadata
+    table stays queryable. One artifact per model.
+    """
+    __tablename__ = "model_artifacts"
+
+    id = Column(Integer, primary_key=True)
+    model_id = Column(Integer, ForeignKey("models.id"), nullable=False, unique=True, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+
+    # base64-encoded pickle of {"estimator": ..., "scaler": ..., "features": [...]}
+    payload = Column(Text, nullable=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow)

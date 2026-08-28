@@ -13,7 +13,7 @@ from app.api import saas_auth, saas_subscriptions, saas_api_keys, saas_user, saa
 from app.api import (
     actions, activity_feed, adoption, connectors, copilot, csv_upload, demo, heatmap, insights,
     leaderboard, marketplace, oauth, onboarding, playbook_monitor, predictions,
-    predictions_api, quickwins, roi, sample_predictions, team_invitations,
+    predictions_api, quickwins, roi, sample_predictions, team_invitations, training,
     user_home, workflows,
 )
 from app.database import get_db, engine
@@ -168,6 +168,7 @@ def create_app() -> FastAPI:
     app.include_router(roi.router)
     app.include_router(sample_predictions.router)
     app.include_router(csv_upload.router)
+    app.include_router(training.router)
     app.include_router(demo.router)
     app.include_router(team_invitations.router)
     app.include_router(user_home.router)
