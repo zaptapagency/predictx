@@ -83,7 +83,7 @@ def training_candidates(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Show which columns could serve as a label and which as features."""
+    """Analyze a data source: which columns can be outcome labels, which are features. Returns candidates so the user can pick what to predict."""
     source = db.query(DataSource).filter(
         DataSource.id == data_source_id,
         DataSource.organization_id == current_user.organization_id,
@@ -118,9 +118,10 @@ def training_candidates(
         "ready_to_train": bool(label_candidates) and len(rows) >= MIN_ROWS,
         "note": (
             None if label_candidates else
-            "No column looks like a binary outcome. Add a column such as "
-            "'churned' with true/false (or 1/0) values — a model cannot be "
-            "trained without known outcomes to learn from."
+            "No column looks like a binary outcome. Add a column with true/false "
+            "(or yes/no, or 1/0) values for what you want to predict. "
+            "Examples: churned, converted, successful, defective. "
+            "A model cannot be trained without known outcomes to learn from."
         ),
     }
 
