@@ -9,6 +9,7 @@ from datetime import datetime
 import enum
 
 from app.db.database import Base
+from app.utils.time import utcnow
 
 # ============================================================================
 # IMPACT TYPE & CATEGORY
@@ -66,7 +67,7 @@ class ImpactRecord(Base):
     confirmation_note = Column(Text, nullable=True)  # User's note on confirmation
 
     # Timeline
-    predicted_at = Column(DateTime, default=datetime.utcnow, index=True)  # When prediction was made
+    predicted_at = Column(DateTime, default=utcnow, index=True)  # When prediction was made
     action_taken_at = Column(DateTime, nullable=True)  # When action was taken
     value_realized_at = Column(DateTime, nullable=True, index=True)  # When value was actually realized
 
@@ -75,8 +76,8 @@ class ImpactRecord(Base):
     is_recurring = Column(Boolean, default=False)  # Will this repeat? (e.g., monthly expansion)
     annual_value = Column(Float, nullable=True)  # If recurring, annual impact
 
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow, index=True)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     def __repr__(self):
         return f"<ImpactRecord {self.entity_name} - ${self.value_amount}>"
@@ -131,8 +132,8 @@ class ROISummary(Base):
     # Breakdown by impact type
     breakdown = Column(JSON, nullable=True)  # {"churn": 500K, "expansion": 150K, "efficiency": 50K}
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     def __repr__(self):
         return f"<ROISummary {self.period} - ${self.net_value}>"
@@ -172,7 +173,7 @@ class PlaybookROI(Base):
     rank_by_value = Column(Integer, nullable=True)  # #1, #2, #3 playbook by value
     rank_by_roi = Column(Integer, nullable=True)  # #1, #2, #3 playbook by ROI
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     def __repr__(self):
         return f"<PlaybookROI playbook_id={self.playbook_id} - ${self.total_value}>"
@@ -209,8 +210,8 @@ class CustomerImpact(Base):
     actions_taken = Column(Integer, default=0)
     outcomes_confirmed = Column(Integer, default=0)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     def __repr__(self):
         return f"<CustomerImpact {self.customer_name} - ${self.total_impact}>"
@@ -252,7 +253,7 @@ class ROIForecast(Base):
     # Assumptions
     assumptions = Column(JSON, nullable=True)  # What did we assume to get this forecast?
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     def __repr__(self):
         return f"<ROIForecast {self.forecast_month} - ${self.forecasted_impact}>"

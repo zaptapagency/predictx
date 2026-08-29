@@ -23,6 +23,7 @@ google-auth>=2.23.0
 
 # Authentication & Security
 python-jose[cryptography]>=3.3.0
+cryptography>=41.0.0  # Fernet, for credential encryption at rest
 passlib[bcrypt]>=1.7.0
 bcrypt==4.0.1
 pyjwt>=2.13.0

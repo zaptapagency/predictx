@@ -10,6 +10,7 @@ from app.database import get_db
 from app.db.models_saas import User, PasswordResetToken
 from app.utils import setup_logger
 import secrets
+from app.utils.time import utcnow
 
 logger = setup_logger(__name__)
 
@@ -35,9 +36,9 @@ class AuthService:
         to_encode = data.copy()
 
         if expires_delta:
-            expire = datetime.utcnow() + expires_delta
+            expire = utcnow() + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(
+            expire = utcnow() + timedelta(
                 hours=settings.JWT_EXPIRATION_HOURS
             )
 
@@ -53,7 +54,7 @@ class AuthService:
     def create_refresh_token(data: dict) -> str:
         """Create refresh token (valid for 30 days)"""
         to_encode = data.copy()
-        expire = datetime.utcnow() + timedelta(days=30)
+        expire = utcnow() + timedelta(days=30)
         to_encode.update({"exp": expire, "type": "refresh"})
 
         encoded_jwt = jwt.encode(
@@ -83,7 +84,7 @@ class AuthService:
         user = db.query(User).filter(User.id == user_id).first()
         if user:
             user.verification_token = token_hash
-            user.verification_token_expires = datetime.utcnow() + timedelta(hours=24)
+            user.verification_token_expires = utcnow() + timedelta(hours=24)
             db.commit()
 
         return token
@@ -96,7 +97,7 @@ class AuthService:
         if not user or not user.verification_token:
             return False
 
-        if user.verification_token_expires < datetime.utcnow():
+        if user.verification_token_expires < utcnow():
             return False
 
         if AuthService.verify_password(token, user.verification_token):
@@ -117,7 +118,7 @@ class AuthService:
         reset_token = PasswordResetToken(
             user_id=user_id,
             token_hash=token_hash,
-            expires_at=datetime.utcnow() + timedelta(hours=24),
+            expires_at=utcnow() + timedelta(hours=24),
         )
 
         db.add(reset_token)
@@ -131,7 +132,7 @@ class AuthService:
         try:
             reset_tokens = db.query(PasswordResetToken).filter(
                 PasswordResetToken.is_used == False,
-                PasswordResetToken.expires_at > datetime.utcnow(),
+                PasswordResetToken.expires_at > utcnow(),
             ).all()
 
             for rt in reset_tokens:

@@ -1,3 +1,4 @@
+from app.utils.time import utcnow
 """
 Pre-built Playbook Templates
 Ready-to-use playbooks for common use cases across industries
@@ -813,8 +814,8 @@ def seed_playbook_templates(db_session, organization_id=1):
             typical_roi=template.get("typical_roi"),
             setup_time_minutes=template.get("setup_time_minutes"),
             status="published",
-            published_at=datetime.utcnow(),
-            created_at=datetime.utcnow(),
+            published_at=utcnow(),
+            created_at=utcnow(),
         )
 
         db_session.add(playbook)

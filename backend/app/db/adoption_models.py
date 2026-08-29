@@ -8,6 +8,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 
 from app.db.database import Base
+from app.utils.time import utcnow
 
 
 class TeamAdoption(Base):
@@ -40,7 +41,7 @@ class TeamAdoption(Base):
     playbooks_deployed = Column(Integer, default=0)
     avg_playbooks_per_user = Column(Float, default=0.0)
 
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     organization = relationship("Organization")
@@ -82,7 +83,7 @@ class UserAdoption(Base):
     features_used = Column(Integer, default=0)  # How many different features
     playbooks_deployed = Column(Integer, default=0)
 
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, index=True)
 
     # Relationships
     user = relationship("User")

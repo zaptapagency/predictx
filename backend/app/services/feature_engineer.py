@@ -12,6 +12,7 @@ import pandas as pd
 
 from app.db.connector_models import CustomerData
 from app.db.models_saas import Organization
+from app.utils.time import utcnow
 
 
 class FeatureEngineer:
@@ -32,7 +33,7 @@ class FeatureEngineer:
         Get all features for a customer as of a specific date
         """
         if as_of_date is None:
-            as_of_date = datetime.utcnow()
+            as_of_date = utcnow()
 
         features = {}
 
@@ -100,7 +101,7 @@ class FeatureEngineer:
             if date_str:
                 try:
                     date = pd.to_datetime(date_str)
-                    days_old = (datetime.utcnow() - date).days
+                    days_old = (utcnow() - date).days
                     features["account_age_days"] = max(1, days_old)
                     features["account_age_log"] = np.log1p(days_old)
                 except:
@@ -141,7 +142,7 @@ class FeatureEngineer:
             if renewal_str:
                 try:
                     renewal_date = pd.to_datetime(renewal_str)
-                    days_to_renewal = (renewal_date - datetime.utcnow()).days
+                    days_to_renewal = (renewal_date - utcnow()).days
                     features["days_to_renewal"] = max(-1000, days_to_renewal)
                     features["renewal_overdue"] = 1 if days_to_renewal < 0 else 0
                     features["renewal_soon"] = 1 if 0 <= days_to_renewal <= 90 else 0

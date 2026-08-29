@@ -3,22 +3,25 @@ Predictions API
 Train models and generate predictions
 """
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
-from datetime import datetime, timedelta
+from datetime import datetime
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
+import base64
+import pickle
 
 from app.db.models_saas import User
+from app.db.connector_models import CustomerData
 from app.db.prediction_models import (
-    Model, Prediction, TrainingRun, ModelStatus, ModelType,
+    Model, ModelArtifact, Prediction, TrainingRun, ModelStatus, ModelType,
     Outcome, OutcomeType, PredictionFeedback, Feature
 )
 from app.db.database import get_db
 from app.services.auth_service import get_current_user
-from app.services.model_service import ModelService
 from app.services.feature_engineer import FeatureEngineer
+from app.utils.time import utcnow
 
 router = APIRouter(prefix="/api/predictions", tags=["predictions"])
 
@@ -64,42 +67,27 @@ class PredictionFeedbackRequest(BaseModel):
 # MODEL MANAGEMENT
 # ============================================================================
 
+# This endpoint used to train on labels invented from hardcoded heuristics,
+# which produced models (and accuracy numbers) that meant nothing. Training now
+# lives in /api/training/train, which requires a real labelled outcome column.
 @router.post("/models/train")
 def train_model(
     request: TrainModelRequest,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Train a new model"""
+    """Removed: training requires real labels, use /api/training/train."""
 
-    try:
-        service = ModelService(db)
-        model = service.train_model(
-            current_user.organization_id,
-            request.model_type,
-            request.training_start,
-            request.training_end,
-            request.algorithm,
-            request.hyperparameters
-        )
-
-        return {
-            "id": model.id,
-            "name": model.name,
-            "status": model.status.value,
-            "message": "Model training started"
-        }
-
-    except KeyError:
-        valid = ", ".join(t.name.lower() for t in ModelType)
-        raise HTTPException(status_code=400, detail=f"Invalid model_type '{request.model_type}'. Valid types: {valid}")
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    raise HTTPException(
+        status_code=400,
+        detail=(
+            "This endpoint no longer trains models. It used to invent training "
+            "labels from heuristics, which cannot produce a meaningful model. "
+            "Use POST /api/training/train with a data_source_id and a "
+            "label_column naming a real outcome column in your uploaded data. "
+            "GET /api/training/candidates/{data_source_id} lists usable columns."
+        ),
+    )
 
 
 @router.get("/models")
@@ -236,79 +224,194 @@ def get_training_runs(
 # PREDICTIONS
 # ============================================================================
 
+# Scoring runs off the pickled artifact that /api/training/train persists, the
+# same bundle /api/training/score uses. If a model has no artifact there is
+# nothing to score with, and we say so instead of returning a made-up number.
+RISK_ACTIONS = {
+    "critical": "reach_out_now",
+    "high": "offer_discount",
+    "medium": "schedule_qbr",
+    "low": "monitor",
+}
+
+
+def _risk_band(score: float) -> str:
+    if score >= 0.75:
+        return "critical"
+    if score >= 0.5:
+        return "high"
+    if score >= 0.25:
+        return "medium"
+    return "low"
+
+
+def _load_model_and_bundle(db: Session, org_id: int, model_id: int):
+    model = db.query(Model).filter(
+        Model.id == model_id,
+        Model.organization_id == org_id
+    ).first()
+
+    if not model:
+        raise HTTPException(status_code=404, detail="Model not found")
+
+    artifact = db.query(ModelArtifact).filter(
+        ModelArtifact.model_id == model.id
+    ).first()
+
+    if not artifact:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Model {model_id} has no saved artifact and cannot score. "
+                "Retrain it with POST /api/training/train."
+            ),
+        )
+
+    return model, pickle.loads(base64.b64decode(artifact.payload))
+
+
+def _feature_row(customer_data: Dict[str, Any], features: List[str], means: List[float]) -> List[float]:
+    """Feature vector for one customer, gaps filled with the training means."""
+    row = []
+    for i, name in enumerate(features):
+        value = customer_data.get(name)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            row.append(float(value))
+        else:
+            row.append(float(means[i]))
+    return row
+
+
+def _score_customers(db: Session, org_id: int, model: Model, bundle: Dict[str, Any], records) -> List[Prediction]:
+    import numpy as np
+
+    estimator, scaler = bundle["estimator"], bundle["scaler"]
+    features, means = bundle["features"], bundle["means"]
+
+    matrix, ids = [], []
+    for record in records:
+        matrix.append(_feature_row(record.customer_data or {}, features, means))
+        ids.append(record.customer_id)
+
+    scores = estimator.predict_proba(scaler.transform(np.array(matrix, dtype=float)))[:, 1]
+
+    top_features = sorted(
+        (model.feature_importance or {}).items(), key=lambda kv: -kv[1]
+    )[:3]
+
+    now = utcnow()
+    written = []
+    for customer_id, score, row in zip(ids, scores, matrix):
+        s = float(score)
+        level = _risk_band(s)
+
+        # One live prediction per customer per model, so re-scoring replaces
+        # rather than stacks up duplicates.
+        db.query(Prediction).filter(
+            Prediction.organization_id == org_id,
+            Prediction.model_id == model.id,
+            Prediction.customer_id == customer_id,
+        ).delete()
+
+        prediction = Prediction(
+            organization_id=org_id,
+            model_id=model.id,
+            customer_id=customer_id,
+            score=s,
+            confidence=round(abs(s - 0.5) * 2, 4),
+            risk_level=level,
+            recommended_action=RISK_ACTIONS[level],
+            contributing_factors=[
+                {"feature": f, "importance": imp, "value": row[features.index(f)]}
+                for f, imp in top_features if f in features
+            ],
+            top_factors=[
+                {"feature": f, "importance": imp, "value": row[features.index(f)]}
+                for f, imp in top_features if f in features
+            ],
+            features_used={f: row[i] for i, f in enumerate(features)},
+            predicted_at=now,
+        )
+        db.add(prediction)
+        written.append(prediction)
+
+    db.commit()
+    for prediction in written:
+        db.refresh(prediction)
+
+    return written
+
+
 @router.post("/predict")
 def make_prediction(
     request: MakePredictionRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Generate prediction for customer"""
+    """Score one customer with a trained model"""
 
-    try:
-        service = ModelService(db)
-        prediction = service.predict(
-            current_user.organization_id,
-            request.model_id,
-            request.customer_id
+    org_id = current_user.organization_id
+    model, bundle = _load_model_and_bundle(db, org_id, request.model_id)
+
+    records = db.query(CustomerData).filter(
+        CustomerData.organization_id == org_id,
+        CustomerData.customer_id == request.customer_id,
+    ).all()
+
+    if not records:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No uploaded data for customer '{request.customer_id}'",
         )
 
-        return {
-            "id": prediction.id,
-            "customer_id": prediction.customer_id,
-            "score": prediction.score,
-            "confidence": prediction.confidence,
-            "risk_level": prediction.risk_level,
-            "recommended_action": prediction.recommended_action,
-            "top_factors": prediction.top_factors,
-            "predicted_at": prediction.predicted_at
-        }
+    predictions = _score_customers(db, org_id, model, bundle, records[:1])
+    prediction = predictions[0]
 
-    except ValueError as e:
-        status = 404 if "not found" in str(e).lower() else 400
-        raise HTTPException(status_code=status, detail=str(e))
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return {
+        "id": prediction.id,
+        "customer_id": prediction.customer_id,
+        "score": prediction.score,
+        "confidence": prediction.confidence,
+        "risk_level": prediction.risk_level,
+        "recommended_action": prediction.recommended_action,
+        "top_factors": prediction.top_factors,
+        "predicted_at": prediction.predicted_at
+    }
 
 
 @router.post("/batch-predict")
 def batch_predict(
     request: BatchPredictRequest,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Batch predict for multiple customers"""
+    """Score many customers with a trained model"""
 
-    try:
-        background_tasks.add_task(
-            _batch_predict_task,
-            current_user.organization_id,
-            request.model_id,
-            request.customer_ids,
-            db
-        )
+    org_id = current_user.organization_id
+    model, bundle = _load_model_and_bundle(db, org_id, request.model_id)
 
-        return {
-            "status": "queued",
-            "message": "Batch prediction started in background"
-        }
+    query = db.query(CustomerData).filter(CustomerData.organization_id == org_id)
+    if request.customer_ids:
+        query = query.filter(CustomerData.customer_id.in_(request.customer_ids))
+    records = query.all()
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    if not records:
+        raise HTTPException(status_code=400, detail="No customer data to score")
 
+    # Runs inline: a background task would outlive the request's db session,
+    # and callers need to know whether scoring actually succeeded.
+    predictions = _score_customers(db, org_id, model, bundle, records)
 
-def _batch_predict_task(
-    organization_id: int,
-    model_id: int,
-    customer_ids: Optional[List[str]],
-    db: Session
-):
-    """Background task for batch predictions"""
-    service = ModelService(db)
-    predictions = service.batch_predict(organization_id, model_id, customer_ids)
-    print(f"Batch prediction completed: {len(predictions)} predictions")
+    distribution = {band: 0 for band in RISK_ACTIONS}
+    for prediction in predictions:
+        distribution[prediction.risk_level] += 1
+
+    return {
+        "status": "completed",
+        "model_id": model.id,
+        "customers_scored": len(predictions),
+        "risk_distribution": distribution,
+    }
 
 
 @router.get("/predictions")
@@ -420,7 +523,7 @@ def record_outcome(
             prediction_id=prediction_id,
             outcome_type=OutcomeType[request.outcome_type.upper()],
             outcome_value=request.outcome_value,
-            occurred_at=datetime.utcnow(),
+            occurred_at=utcnow(),
             notes=request.notes
         )
 

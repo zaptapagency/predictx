@@ -21,6 +21,7 @@ from app.db.connector_models import (
     DataConnection, DataSource, SyncLog, CustomerData,
 )
 from app.services.auth_service import get_current_user
+from app.utils.time import utcnow
 
 router = APIRouter(prefix="/api/connectors/csv", tags=["connectors"])
 
@@ -148,7 +149,7 @@ async def upload_csv(
         config={"storage_type": "upload", "filename": filename},
         credentials={},
         created_by_id=current_user.id,
-        last_tested_at=datetime.utcnow(),
+        last_tested_at=utcnow(),
         last_tested_status="success",
     )
     db.add(connection)
@@ -181,7 +182,7 @@ async def upload_csv(
         organization_id=org_id,
         sync_type="manual",
         status="running",
-        started_at=datetime.utcnow(),
+        started_at=utcnow(),
     )
     db.add(sync_log)
     db.flush()
@@ -207,7 +208,7 @@ async def upload_csv(
         ))
         inserted += 1
 
-    completed = datetime.utcnow()
+    completed = utcnow()
     sync_log.status = "success"
     sync_log.completed_at = completed
     sync_log.duration_seconds = int((completed - sync_log.started_at).total_seconds())

@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime, JSON, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
+from app.utils.time import utcnow
 
 Base = declarative_base()
 
@@ -20,8 +21,8 @@ class Prediction(Base):
     recommendation = Column(String, nullable=True)
     model_version = Column(String)
     inference_time_ms = Column(Float)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
 
 class BatchJob(Base):
@@ -38,7 +39,7 @@ class BatchJob(Base):
     failed = Column(Integer, default=0)
     status = Column(String, default="pending")  # pending, processing, completed, failed
     results_url = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
     completed_at = Column(DateTime, nullable=True)
 
 
@@ -53,7 +54,7 @@ class Upload(Base):
     file_size = Column(Integer)
     status = Column(String, default="pending")  # pending, processing, completed, failed
     rows_count = Column(Integer, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
     processed_at = Column(DateTime, nullable=True)
 
 
@@ -71,8 +72,8 @@ class Model(Base):
     accuracy = Column(Float, nullable=True)
     feature_count = Column(Integer)
     training_date = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
 
 class User(Base):
@@ -85,5 +86,5 @@ class User(Base):
     full_name = Column(String, nullable=True)
     hashed_password = Column(String)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)

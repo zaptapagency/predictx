@@ -1,6 +1,9 @@
 """
 Quick Wins API
-Pre-configured 1-click actions
+
+The available plays are derived from the latest scoring run rather than
+pre-configured: a quick win is only a quick win if it points at customers who
+are actually flagged right now. See app/services/prediction_summary.py.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -12,8 +15,17 @@ from app.db.models_saas import User
 from app.db.quickwin_models import QuickWin, QuickWinExecution
 from app.db.database import get_db
 from app.services.auth_service import get_current_user
+from app.services.prediction_summary import (
+    empty_state_message, money, summarize_org_predictions,
+)
 
 router = APIRouter(prefix="/api/quick-wins", tags=["quick-wins"])
+
+
+def _stake(customers):
+    """Total revenue at stake across a group, and how many of them we can value."""
+    known = [c for c in customers if c.revenue_at_stake is not None]
+    return round(sum(c.revenue_at_stake for c in known), 2), len(known)
 
 
 @router.get("/available")
@@ -21,28 +33,100 @@ def get_available_quick_wins(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get available quick wins for user"""
+    """Get the high-impact, low-effort plays the latest scoring run supports"""
 
-    quick_wins = db.query(QuickWin).filter(
-        QuickWin.organization_id == current_user.organization_id,
-        QuickWin.is_active == True
-    ).order_by(QuickWin.order).all()
+    summary = summarize_org_predictions(db, current_user.organization_id)
+    if summary is None:
+        return {
+            "quick_wins": [],
+            "total": 0,
+            "message": empty_state_message(db, current_user.organization_id),
+        }
+
+    subject = summary.subject
+    critical = [c for c in summary.customers if c.band == "critical"]
+    high = [c for c in summary.customers if c.band == "high"]
+    quick_wins = []
+
+    # The single biggest account, first: one phone call, most money on the line.
+    valued = [c for c in summary.at_risk if c.revenue_at_stake is not None]
+    if valued:
+        top = max(valued, key=lambda c: c.revenue_at_stake)
+        quick_wins.append({
+            "id": f"top-account-{top.customer_id}",
+            "title": f"Call {top.name}",
+            "description": (
+                f"One call. {top.name} scores {top.score * 100:.0f}% {subject} on "
+                f"{money(top.annual_revenue)} of annual revenue"
+                + (f", driven by {', '.join(top.drivers)}." if top.drivers else ".")
+            ),
+            "icon": "📞",
+            "action_type": "call",
+            "estimated_target_count": 1,
+            "estimated_impact": money(top.revenue_at_stake),
+            "success_probability": None,  # No outcome history yet, so we don't guess.
+            "customer_ids": [top.customer_id],
+        })
+
+    if critical:
+        amount, known = _stake(critical)
+        quick_wins.append({
+            "id": "outreach-critical",
+            "title": f"Reach out to {len(critical)} critical accounts",
+            "description": (
+                f"{len(critical)} customers scored above the critical {subject} threshold in "
+                f"{summary.model_name}'s latest run."
+                + (f" Revenue at stake is known for {known} of them." if known < len(critical) else "")
+            ),
+            "icon": "🚨",
+            "action_type": "bulk_call",
+            "estimated_target_count": len(critical),
+            "estimated_impact": money(amount) if known else None,
+            "success_probability": None,
+            "customer_ids": [c.customer_id for c in critical[:50]],
+        })
+
+    if high:
+        amount, known = _stake(high)
+        quick_wins.append({
+            "id": "offer-high",
+            "title": f"Email {len(high)} high-risk accounts",
+            "description": (
+                f"{len(high)} customers sit in the high {subject} band — close enough to matter, "
+                f"far enough that an email is usually the right first touch."
+            ),
+            "icon": "✉️",
+            "action_type": "bulk_email",
+            "estimated_target_count": len(high),
+            "estimated_impact": money(amount) if known else None,
+            "success_probability": None,
+            "customer_ids": [c.customer_id for c in high[:50]],
+        })
+
+    # A play aimed at the one thing driving most of the cohort's risk.
+    if summary.drivers and summary.at_risk:
+        driver = summary.drivers[0]
+        quick_wins.append({
+            "id": f"driver-{driver['feature']}",
+            "title": f"Review {driver['feature']} across flagged accounts",
+            "description": (
+                f"'{driver['feature']}' accounts for {driver['share_of_risk'] * 100:.0f}% of the "
+                f"modelled {subject} across {driver['customers_affected']} flagged customers"
+                + (f", averaging {driver['average_value']:,.2f}." if driver["average_value"] is not None else ".")
+            ),
+            "icon": "🔎",
+            "action_type": "task",
+            "estimated_target_count": driver["customers_affected"],
+            "estimated_impact": None,
+            "success_probability": None,
+            "customer_ids": [c.customer_id for c in summary.at_risk[:50]],
+        })
 
     return {
-        "quick_wins": [
-            {
-                "id": w.id,
-                "title": w.title,
-                "description": w.description,
-                "icon": w.icon,
-                "action_type": w.action_type,
-                "estimated_target_count": w.estimated_target_count,
-                "estimated_impact": f"${w.estimated_impact:,.0f}" if w.estimated_impact else None,
-                "success_probability": f"{w.success_probability * 100:.0f}%" if w.success_probability else None,
-            }
-            for w in quick_wins
-        ],
-        "total": len(quick_wins)
+        "quick_wins": quick_wins,
+        "total": len(quick_wins),
+        "model": summary.model_name,
+        "scored_at": summary.scored_at.isoformat() if summary.scored_at else None,
     }
 
 

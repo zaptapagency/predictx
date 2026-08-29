@@ -9,6 +9,7 @@ from datetime import datetime
 import enum
 
 from .database import Base
+from app.utils.time import utcnow
 
 
 class ModelType(str, enum.Enum):
@@ -82,8 +83,8 @@ class Model(Base):
     # Predictions using this model
     predictions = relationship("Prediction", back_populates="model")
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
     created_by_id = Column(Integer, ForeignKey("users.id"))
 
 
@@ -113,7 +114,7 @@ class Prediction(Base):
     recommended_action = Column(String(255))  # "reach_out", "cross_sell", "renew", etc
 
     # Metadata
-    predicted_at = Column(DateTime, default=datetime.utcnow)
+    predicted_at = Column(DateTime, default=utcnow)
     features_used = Column(JSON)  # Snapshot of features that went into prediction
 
     # Link to workflow
@@ -150,7 +151,7 @@ class Outcome(Base):
     contributing_factors = Column(JSON)  # What actually drove the outcome?
     notes = Column(Text)  # Manual notes about why prediction was/wasn't accurate
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     prediction = relationship("Prediction", back_populates="outcome")
 
@@ -186,7 +187,7 @@ class Feature(Base):
     # Used in models
     models_using = Column(JSON)  # List of model IDs using this feature
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 class ModelPerformance(Base):
@@ -216,7 +217,7 @@ class ModelPerformance(Base):
 
     is_drifted = Column(Boolean, default=False)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 class PredictionFeedback(Base):
@@ -239,7 +240,7 @@ class PredictionFeedback(Base):
     tagged_factors = Column(JSON)  # Which factors actually mattered?
 
     created_by_id = Column(Integer, ForeignKey("users.id"))
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 class TrainingRun(Base):
@@ -277,7 +278,7 @@ class TrainingRun(Base):
     error_message = Column(Text)
     notes = Column(Text)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 class ModelArtifact(Base):
@@ -294,4 +295,4 @@ class ModelArtifact(Base):
     # base64-encoded pickle of {"estimator": ..., "scaler": ..., "features": [...]}
     payload = Column(Text, nullable=False)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)

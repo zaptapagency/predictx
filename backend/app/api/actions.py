@@ -14,10 +14,13 @@ from app.db.models_saas import User, Organization
 from app.db.action_models import Action, ActionExecution, ActionTemplate, QuickAction, ActionStatus, ActionPriority
 from app.db.database import get_db
 from app.services.auth_service import get_current_user
-from app.services.email_service import EmailService
+from app.utils.time import utcnow
+from app.services.channels import (
+    ChannelError, ChannelUnavailable, DeliveryResult, deliver_email, deliver_salesforce_task,
+    deliver_slack, deliver_unsupported, deliver_webhook,
+)
 
 router = APIRouter(prefix="/api/actions", tags=["actions"])
-email_service = EmailService()
 
 # ============================================================================
 # REQUEST/RESPONSE MODELS
@@ -151,11 +154,15 @@ def execute_action(
     db: Session = Depends(get_db)
 ):
     """
-    Execute one or more actions
-    Handles: email, Slack, create task, schedule call, webhook
+    Execute one or more actions for real.
+
+    An action is only marked completed when its channel confirms delivery.
+    Anything else is recorded as a failure with the reason, so the Action
+    Center reflects what actually reached the customer.
     """
 
     action_ids = payload.action_ids if payload.action_ids else [payload.action_id]
+    action_ids = [a for a in action_ids if a is not None]
 
     if not action_ids:
         raise HTTPException(status_code=400, detail="No actions specified")
@@ -175,132 +182,202 @@ def execute_action(
             continue
 
         try:
-            # Execute based on type
-            if action.action_type == "email":
-                execute_email_action(action, current_user, db)
-            elif action.action_type == "slack":
-                execute_slack_action(action, current_user, db)
-            elif action.action_type == "salesforce":
-                execute_salesforce_action(action, current_user, db)
-            elif action.action_type == "task":
-                execute_task_action(action, current_user, db)
-            elif action.action_type == "meeting":
-                execute_meeting_action(action, current_user, db)
-            else:
-                execute_webhook_action(action, current_user, db)
+            result = _dispatch(action, current_user, db)
 
-            # Log execution
-            execution = ActionExecution(
+        except ChannelError as e:
+            # Delivery genuinely failed. Record why, and leave the action
+            # recoverable rather than pretending it went out.
+            reason = str(e)
+            db.add(ActionExecution(
                 action_id=action.id,
                 user_id=current_user.id,
                 organization_id=current_user.organization_id,
                 execution_type=payload.execution_type,
                 scheduled_for=payload.scheduled_for,
-                success=True
-            )
-            db.add(execution)
-
-            # Update action status
-            action.status = ActionStatus.IN_PROGRESS if payload.execution_type == "scheduled" else ActionStatus.COMPLETED
-            action.executed_at = datetime.utcnow()
-
-            executed.append({
-                "action_id": action.id,
-                "title": action.title,
-                "entity_name": action.entity_name,
-                "status": action.status
-            })
-
-        except Exception as e:
+                success=False,
+                error_message=reason,
+            ))
+            action.status = ActionStatus.FAILED
+            action.outcome = "failed"
+            action.updated_at = utcnow()
             failed.append({
                 "action_id": action.id,
                 "title": action.title,
-                "error": str(e)
+                "error": reason,
+                "needs_setup": isinstance(e, ChannelUnavailable),
             })
+            continue
+
+        db.add(ActionExecution(
+            action_id=action.id,
+            user_id=current_user.id,
+            organization_id=current_user.organization_id,
+            execution_type=payload.execution_type,
+            scheduled_for=payload.scheduled_for,
+            success=True,
+            response_data=result.response_data,
+        ))
+
+        action.status = (
+            ActionStatus.IN_PROGRESS if payload.execution_type == "scheduled"
+            else ActionStatus.COMPLETED
+        )
+        action.executed_at = utcnow()
+        action.result = {"channel": result.channel, "detail": result.detail,
+                         "external_id": result.external_id}
+
+        executed.append({
+            "action_id": action.id,
+            "title": action.title,
+            "entity_name": action.entity_name,
+            "status": action.status,
+            "detail": result.detail,
+        })
 
     db.commit()
 
+    if executed and failed:
+        message = f"Executed {len(executed)} of {len(action_ids)} actions; {len(failed)} failed."
+    elif executed:
+        message = f"Executed {len(executed)} action{'s' if len(executed) != 1 else ''}."
+    elif failed:
+        message = f"No actions were executed. {failed[0]['error']}"
+    else:
+        message = "Nothing to do."
+
     return {
-        "success": True,
+        "success": bool(executed) and not failed,
         "executed": executed,
         "failed": failed,
         "total": len(action_ids),
-        "message": f"Executed {len(executed)} actions successfully"
+        "message": message,
+    }
+
+
+def _dispatch(action: Action, user: User, db: Session):
+    """Route an action to its channel. Raises ChannelError if it cannot be delivered."""
+    handlers = {
+        "email": execute_email_action,
+        "slack": execute_slack_action,
+        "salesforce": execute_salesforce_action,
+        "task": execute_task_action,
+        "webhook": execute_webhook_action,
+    }
+    handler = handlers.get((action.action_type or "").lower())
+    if handler is None:
+        # phone_call, meeting and friends: we cannot place a call for someone.
+        return deliver_unsupported(action.action_type or "unknown")()
+    return handler(action, user, db)
+
+
+def _context(action: Action) -> dict:
+    """The facts about this action worth putting in a message."""
+    config = action.action_config or {}
+    return {
+        "customer": action.entity_name or action.entity_id,
+        "customer_id": action.entity_id,
+        "title": action.title,
+        "why": action.description or "",
+        "risk_level": config.get("risk_level"),
+        "score": config.get("score"),
+        "estimated_impact": action.estimated_impact,
+        "priority": action.priority,
+        "due_at": action.due_at.isoformat() if action.due_at else None,
     }
 
 
 def execute_email_action(action: Action, user: User, db: Session):
-    """Send email action"""
+    """Email the customer."""
     config = action.action_config or {}
+    subject = config.get("subject") or action.title
+    body = config.get("message") or action.recommended_message
 
-    email_service.send_email(
-        to=action.entity_email,
-        subject=config.get("subject", action.title),
-        template=config.get("template", "action_email"),
-        data={
-            "recipient_name": action.entity_name,
-            "message": config.get("message"),
-            "action_type": "email"
-        }
+    if not body:
+        # No hand-written message. Send something truthful and useful rather
+        # than forwarding raw model output to a customer.
+        body = (
+            f"Hi {action.entity_name or 'there'},\n\n"
+            "We wanted to check in and make sure you are getting what you need "
+            "from us. Is there a good time this week for a quick conversation?"
+        )
+
+    paragraphs = "".join(f"<p>{line}</p>" for line in body.split("\n") if line.strip())
+    html = (
+        '<html><body style="font-family: Arial, sans-serif; line-height:1.6; color:#333;">'
+        f'<div style="max-width:600px;margin:0 auto;padding:20px;">{paragraphs}'
+        f'<p style="margin-top:24px">-- {user.full_name or user.username}</p>'
+        "</div></body></html>"
+    )
+
+    return deliver_email(
+        db, action.organization_id,
+        to=action.entity_email, subject=subject, body_html=html, body_text=body,
     )
 
 
 def execute_slack_action(action: Action, user: User, db: Session):
-    """Send Slack notification"""
+    """Post the action to the team's Slack channel."""
     config = action.action_config or {}
-
-    # TODO: Integrate with Slack API
-    # slack_client.send_message(
-    #     channel=config.get("channel"),
-    #     message=config.get("message")
-    # )
+    impact = (f" (~${action.estimated_impact:,.0f} at stake)"
+              if action.estimated_impact else "")
+    text = config.get("message") or (
+        f"*{action.title}*{impact}\n{action.description or ''}"
+    )
+    return deliver_slack(db, action.organization_id, text=text,
+                         webhook_url=config.get("webhook_url"))
 
 
 def execute_salesforce_action(action: Action, user: User, db: Session):
-    """Create task in Salesforce"""
+    """Create a follow-up task on the Salesforce record."""
     config = action.action_config or {}
-
-    # TODO: Integrate with Salesforce API
-    # sf.Task.create({
-    #     'WhoId': config.get('contact_id'),
-    #     'WhatId': config.get('account_id'),
-    #     'Subject': action.title,
-    #     'Description': action.description,
-    #     'Priority': 'High',
-    #     'Status': 'Open'
-    # })
+    return deliver_salesforce_task(
+        db, action.organization_id,
+        subject=action.title,
+        description=action.description or "",
+        priority="High" if action.priority in ("critical", "high") else "Normal",
+        account_id=config.get("account_id"),
+        contact_id=config.get("contact_id"),
+    )
 
 
 def execute_task_action(action: Action, user: User, db: Session):
-    """Create internal task"""
+    """
+    Assign the action to a teammate.
+
+    The action row is itself the task, so "creating" one means giving it an
+    owner and a deadline rather than copying it into another table.
+    """
     config = action.action_config or {}
+    assignee_id = config.get("assignee_id") or user.id
 
-    # TODO: Create task in internal system
-    pass
+    assignee = db.query(User).filter(
+        User.id == assignee_id,
+        User.organization_id == action.organization_id,
+    ).first()
+    if not assignee:
+        raise ChannelError(f"No user {assignee_id} in this organization to assign the task to.")
 
+    action.assigned_to_id = assignee.id
+    if not action.due_at:
+        action.due_at = utcnow() + timedelta(days=3)
 
-def execute_meeting_action(action: Action, user: User, db: Session):
-    """Schedule meeting/call"""
-    config = action.action_config or {}
-
-    # TODO: Integrate with Calendly or calendar API
-    # calendly.schedule_event(
-    #     attendees=[action.entity_email],
-    #     title=action.title,
-    #     duration=config.get("duration", 30),
-    #     when=config.get("when", "asap")
-    # )
+    name = assignee.full_name or assignee.username
+    return DeliveryResult(
+        channel="task",
+        detail=f"Assigned to {name}, due {action.due_at:%b %d}.",
+        response_data={"assigned_to_id": assignee.id, "due_at": action.due_at.isoformat()},
+    )
 
 
 def execute_webhook_action(action: Action, user: User, db: Session):
-    """Send to webhook"""
+    """POST the action to the customer's own endpoint."""
     config = action.action_config or {}
-
-    # TODO: Send HTTP POST to webhook
-    # requests.post(
-    #     config.get("url"),
-    #     json={"action": action.title, "entity": action.entity_name}
-    # )
+    return deliver_webhook(
+        db, action.organization_id,
+        payload={"event": "forecastx.action", "action_id": action.id, **_context(action)},
+        url=config.get("url"),
+        headers=config.get("headers"),
+    )
 
 
 # ============================================================================
@@ -332,7 +409,7 @@ def record_action_outcome(
     action.result = {
         "outcome": payload.outcome,
         "notes": payload.notes,
-        "recorded_at": datetime.utcnow().isoformat(),
+        "recorded_at": utcnow().isoformat(),
         "recorded_by": current_user.name
     }
 
@@ -343,7 +420,7 @@ def record_action_outcome(
 
     if execution:
         execution.outcome = payload.outcome
-        execution.outcome_at = datetime.utcnow()
+        execution.outcome_at = utcnow()
         execution.outcome_notes = payload.notes
 
     db.commit()
@@ -393,39 +470,61 @@ def execute_quick_action(
         if matches_filter(action, filter_config):
             matching_actions.append(action)
 
-    # Execute all matching
+    # Execute all matching. Same rule as single execution: a channel that did
+    # not deliver leaves its action open and is counted as a failure, so the
+    # bulk result reports what really went out.
     executed = 0
+    failures = []
+
     for action in matching_actions:
         try:
-            if action.action_type == "email":
-                execute_email_action(action, current_user, db)
-
-            execution = ActionExecution(
+            result = _dispatch(action, current_user, db)
+        except ChannelError as e:
+            db.add(ActionExecution(
                 action_id=action.id,
                 user_id=current_user.id,
                 organization_id=current_user.organization_id,
                 execution_type="bulk",
-                success=True
-            )
-            db.add(execution)
-            action.status = ActionStatus.COMPLETED
-            action.executed_at = datetime.utcnow()
-            executed += 1
+                success=False,
+                error_message=str(e),
+            ))
+            action.status = ActionStatus.FAILED
+            action.outcome = "failed"
+            failures.append({"action_id": action.id, "title": action.title, "error": str(e)})
+            continue
 
-        except Exception as e:
-            pass
+        db.add(ActionExecution(
+            action_id=action.id,
+            user_id=current_user.id,
+            organization_id=current_user.organization_id,
+            execution_type="bulk",
+            success=True,
+            response_data=result.response_data,
+        ))
+        action.status = ActionStatus.COMPLETED
+        action.executed_at = utcnow()
+        action.result = {"channel": result.channel, "detail": result.detail}
+        executed += 1
 
     # Update quick action stats
     quick_action.times_used += 1
-    quick_action.last_used_at = datetime.utcnow()
+    quick_action.last_used_at = utcnow()
 
     db.commit()
 
+    if failures:
+        message = (f"Executed {executed} of {len(matching_actions)} actions; "
+                   f"{len(failures)} failed. First error: {failures[0]['error']}")
+    else:
+        message = f"Executed {executed} actions via quick action"
+
     return {
-        "success": True,
+        "success": bool(executed) and not failures,
         "quick_action": quick_action.name,
         "actions_executed": executed,
-        "message": f"Executed {executed} actions via quick action"
+        "actions_matched": len(matching_actions),
+        "failed": failures,
+        "message": message,
     }
 
 
@@ -469,7 +568,7 @@ def get_action_history(
 ):
     """Get history of actions taken"""
 
-    since = datetime.utcnow() - timedelta(days=days)
+    since = utcnow() - timedelta(days=days)
 
     query = db.query(ActionExecution).filter(
         ActionExecution.organization_id == current_user.organization_id,

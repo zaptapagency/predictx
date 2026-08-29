@@ -9,6 +9,7 @@ from datetime import datetime
 import enum
 
 from app.db.database import Base
+from app.utils.time import utcnow
 
 # ============================================================================
 # ACTION STATUS & PRIORITY
@@ -86,8 +87,8 @@ class Action(Base):
     outcome = Column(String(50), nullable=True)  # success, partial, failed, skipped
 
     # Tracking
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow, index=True)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     organization = relationship("Organization")
@@ -116,7 +117,7 @@ class ActionExecution(Base):
     # Execution details
     execution_type = Column(String(50))  # immediate, scheduled, bulk, auto
     scheduled_for = Column(DateTime, nullable=True)
-    executed_at = Column(DateTime, default=datetime.utcnow)
+    executed_at = Column(DateTime, default=utcnow)
 
     # Result tracking
     success = Column(Boolean, default=True)
@@ -128,7 +129,7 @@ class ActionExecution(Base):
     outcome_at = Column(DateTime, nullable=True)  # When we learned the outcome
     outcome_notes = Column(Text, nullable=True)  # User notes, system notes
 
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
 
     def __repr__(self):
         return f"<ActionExecution action_id={self.action_id} - {self.success}>"
@@ -168,8 +169,8 @@ class ActionTemplate(Base):
     usage_count = Column(Integer, default=0)
     is_public = Column(Boolean, default=False)  # Public template vs org-specific
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     def __repr__(self):
         return f"<ActionTemplate {self.name}>"
@@ -205,7 +206,7 @@ class QuickAction(Base):
     last_used_at = Column(DateTime, nullable=True)
     success_rate = Column(Float, nullable=True)  # % that succeeded
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     def __repr__(self):
         return f"<QuickAction {self.name}>"

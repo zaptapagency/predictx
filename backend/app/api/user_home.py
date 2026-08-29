@@ -15,6 +15,10 @@ from app.db.action_models import Action
 from app.db.leaderboard_models import UserActivity
 from app.db.database import get_db
 from app.services.auth_service import get_current_user
+from app.utils.time import utcnow
+from app.services.prediction_summary import (
+    empty_state_message, money, summarize_org_predictions,
+)
 
 router = APIRouter(prefix="/api/user", tags=["user-home"])
 
@@ -27,7 +31,7 @@ def get_user_home(
     """Get personalized user home dashboard"""
 
     # Get this month's ROI data
-    now = datetime.utcnow()
+    now = utcnow()
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
     impact_records = db.query(ImpactRecord).filter(
@@ -80,25 +84,28 @@ def get_user_home(
                 "target": 100
             }
 
-    # Get top 3 actions
-    pending_actions = db.query(Action).filter(
-        Action.assigned_to_id == current_user.id,
-        Action.status == "pending"
-    ).order_by(
-        Action.priority.desc(),
-        Action.estimated_impact.desc()
-    ).limit(3).all()
+    # What to do first comes from the latest scoring run, not from whatever
+    # happens to be assigned: the model has an opinion about ordering and the
+    # assignment queue doesn't.
+    summary = summarize_org_predictions(db, current_user.organization_id)
 
-    top_actions = [
-        {
-            "id": a.id,
-            "title": a.title,
-            "icon": "🎯",
-            "impact": f"${a.estimated_impact:,.0f}" if a.estimated_impact else "TBD",
-            "priority": "CRITICAL" if a.priority == "critical" else "HIGH" if a.priority == "high" else "MEDIUM"
-        }
-        for a in pending_actions
-    ]
+    top_actions = []
+    if summary is not None:
+        ranked = sorted(
+            summary.at_risk,
+            key=lambda c: (c.revenue_at_stake is not None, c.revenue_at_stake or 0.0, c.score),
+            reverse=True,
+        )
+        top_actions = [
+            {
+                "id": f"pred-{summary.model_id}-{c.customer_id}",
+                "title": f"Contact {c.name} ({c.score * 100:.0f}% {summary.subject})",
+                "icon": "🎯",
+                "impact": money(c.revenue_at_stake) or "Unknown",
+                "priority": c.band.upper(),
+            }
+            for c in ranked[:3]
+        ]
 
     # Get recent wins (user activity)
     recent_activities = db.query(UserActivity).filter(
@@ -119,13 +126,58 @@ def get_user_home(
         for a in recent_activities
     ]
 
-    # Forecast (simple linear growth)
-    avg_daily_impact = total_impact / max((now - month_start).days, 1)
-    days_remaining = (now.replace(day=1) + timedelta(days=32)).replace(day=1) - now
-    forecast_amount = total_impact + (avg_daily_impact * days_remaining.days)
+    # Forecast is a straight-line projection of this month's realized impact.
+    # With nothing realized yet there is nothing to project from, so we say so
+    # rather than extrapolating from zero and dressing it up with a confidence.
+    if total_impact > 0:
+        avg_daily_impact = total_impact / max((now - month_start).days, 1)
+        days_remaining = (now.replace(day=1) + timedelta(days=32)).replace(day=1) - now
+        forecast_next_month = f"${total_impact + (avg_daily_impact * days_remaining.days):,.0f}"
+    else:
+        forecast_next_month = None
+
+    # The prediction-grounded half of the dashboard.
+    if summary is None:
+        prediction_block = {
+            "customers_scored": 0,
+            "customers_at_risk": 0,
+            "revenue_at_risk": None,
+            "risk_distribution": None,
+            "since_last_scoring": None,
+            "model": None,
+            "scored_at": None,
+            "headline": empty_state_message(db, current_user.organization_id),
+        }
+    else:
+        shift = summary.band_shift()
+        if shift is None:
+            since = "This is the first scoring run, so there's nothing to compare against yet."
+        else:
+            moved = shift["critical"] + shift["high"]
+            since = (
+                f"{abs(moved)} {'more' if moved > 0 else 'fewer' if moved < 0 else 'net change in'} "
+                f"customers in the high or critical band since the previous run."
+            )
+        prediction_block = {
+            "customers_scored": summary.total_customers,
+            "customers_at_risk": len(summary.at_risk),
+            "revenue_at_risk": money(summary.revenue_at_stake) if summary.revenue_known_for else None,
+            "risk_distribution": summary.band_counts,
+            "since_last_scoring": since,
+            "model": summary.model_name,
+            "scored_at": summary.scored_at.isoformat() if summary.scored_at else None,
+            "headline": (
+                f"{len(summary.at_risk)} of {summary.total_customers} customers are predicted "
+                f"to be at {summary.subject}."
+                if summary.at_risk else
+                f"None of your {summary.total_customers} scored customers are in the high or "
+                f"critical band right now."
+            ),
+        }
 
     return {
         "user_name": current_user.name.split()[0],
+        **prediction_block,
         "this_month_impact": f"${total_impact:,.0f}",
         "revenue_saved": f"${revenue_saved:,.0f}",
         "revenue_created": f"${revenue_created:,.0f}",
@@ -133,50 +185,16 @@ def get_user_home(
         "rank_change": rank_change,
         "current_streak": stats.current_streak if stats else 0,
         "badges_earned": len(achievements),
-        "next_badge": next_badge or {
-            "name": "Revenue Maker",
-            "icon": "💰",
-            "progress": int(total_impact / 10000),
-            "target": 10
-        },
-        "top_actions": top_actions if top_actions else [
-            {
-                "id": 1,
-                "title": "No pending actions - take a quick win!",
-                "icon": "⚡",
-                "impact": "Varies",
-                "priority": "MEDIUM"
-            }
-        ],
-        "forecast_next_month": f"${forecast_amount:,.0f}",
-        "forecast_confidence": "75%",
-        "recent_wins": recent_wins if recent_wins else [
-            {
-                "title": "Welcome to ForecastX!",
-                "impact": "Start taking actions to earn wins",
-                "when": "Today"
-            }
-        ],
-        "recommended_playbooks": [
-            {
-                "id": 1,
-                "name": "Churn Prevention",
-                "roi": "6.5x ROI",
-                "reason": "Your highest-value use case based on data"
-            },
-            {
-                "id": 2,
-                "name": "Lead Scoring",
-                "roi": "4.2x ROI",
-                "reason": "Most adopted by your team - proven results"
-            },
-            {
-                "id": 3,
-                "name": "Expansion Detector",
-                "roi": "3.8x ROI",
-                "reason": "Complements your current playbooks perfectly"
-            }
-        ]
+        "next_badge": next_badge,
+        "top_actions": top_actions,
+        "forecast_next_month": forecast_next_month,
+        # A projection needs an accuracy history to be worth a number. We don't
+        # have one, so this stays empty instead of quoting a made-up percentage.
+        "forecast_confidence": None,
+        "recent_wins": recent_wins,
+        # Playbook ROI would have to be measured, not assumed. Until it is, the
+        # concrete thing to recommend is the top-scoring account.
+        "recommended_playbooks": [],
     }
 
 
@@ -187,7 +205,7 @@ def get_daily_summary(
 ):
     """Get user's daily summary (for email digest)"""
 
-    now = datetime.utcnow()
+    now = utcnow()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     # Today's actions
@@ -227,16 +245,20 @@ def get_insights_for_home(
 ):
     """Get top insights to show on home dashboard"""
 
-    from app.db.insights_models import Insight
+    summary = summarize_org_predictions(db, current_user.organization_id)
+    if summary is None:
+        return {
+            "urgent_count": 0,
+            "urgent_insight": None,
+            "action": empty_state_message(db, current_user.organization_id),
+        }
 
-    urgent_insights = db.query(Insight).filter(
-        Insight.user_id == current_user.id,
-        Insight.is_urgent == True,
-        Insight.dismissed == False
-    ).limit(1).all()
-
+    critical = summary.band_counts["critical"]
     return {
-        "urgent_count": len(urgent_insights),
-        "urgent_insight": urgent_insights[0].title if urgent_insights else None,
-        "action": "Check your Insights"
+        "urgent_count": critical,
+        "urgent_insight": (
+            f"{critical} customers are in the critical {summary.subject} band"
+            if critical else None
+        ),
+        "action": "Check your Insights",
     }

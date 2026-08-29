@@ -8,6 +8,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 
 from .database import Base
+from app.utils.time import utcnow
 
 
 class OnboardingProgress(Base):
@@ -40,8 +41,8 @@ class OnboardingProgress(Base):
     first_prediction_at = Column(DateTime, nullable=True)
 
     # Timestamps
-    started_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    started_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Properties
     is_completed = Column(Boolean, default=False)
@@ -69,7 +70,7 @@ class OnboardingEvent(Base):
 
     # Timing
     duration_seconds = Column(Integer)  # Time spent on step
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 class OnboardingEmailSequence(Base):
@@ -87,7 +88,7 @@ class OnboardingEmailSequence(Base):
     email_type = Column(String(50))  # "tip", "guide", "celebration"
 
     # Tracking
-    sent_at = Column(DateTime, default=datetime.utcnow)
+    sent_at = Column(DateTime, default=utcnow)
     opened_at = Column(DateTime, nullable=True)
     clicked_at = Column(DateTime, nullable=True)
 

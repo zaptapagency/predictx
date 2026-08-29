@@ -8,6 +8,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 
 from app.db.database import Base
+from app.utils.time import utcnow
 
 
 class CopilotRecommendation(Base):
@@ -49,7 +50,7 @@ class CopilotRecommendation(Base):
     execution_date = Column(DateTime, nullable=True)
     execution_outcome = Column(String(50), nullable=True)  # success, failed, pending
 
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
 
     # Relationships
     user = relationship("User")
@@ -79,7 +80,7 @@ class CopilotFeedback(Base):
     actual_outcome = Column(String(50), nullable=True)  # success, failed, not_applicable
     actual_impact = Column(Float, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
 
     # Relationships
     recommendation = relationship("CopilotRecommendation")

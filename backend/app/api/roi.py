@@ -11,9 +11,12 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 
 from app.db.models_saas import User, Organization
+from app.db.action_models import Action, ActionStatus
 from app.db.roi_models import ImpactRecord, ROISummary, PlaybookROI, CustomerImpact, ROIForecast
+from app.services.prediction_sync import AUTO_SOURCE
 from app.db.database import get_db
 from app.services.auth_service import get_current_user
+from app.utils.time import utcnow
 
 router = APIRouter(prefix="/api/roi", tags=["roi"])
 
@@ -51,11 +54,11 @@ def get_roi_dashboard(
     org_id = current_user.organization_id
 
     # Get this month's summary
-    this_month = datetime.utcnow().strftime("%Y-%m")
+    this_month = utcnow().strftime("%Y-%m")
     summary = db.query(ROISummary).filter(
         ROISummary.organization_id == org_id,
         ROISummary.period == "month",
-        ROISummary.period_start >= datetime.utcnow().replace(day=1)
+        ROISummary.period_start >= utcnow().replace(day=1)
     ).first()
 
     if not summary:
@@ -79,7 +82,7 @@ def get_roi_dashboard(
     ).order_by(desc(CustomerImpact.total_impact)).limit(5).all()
 
     # Get forecast for next month
-    next_month = (datetime.utcnow() + timedelta(days=30)).strftime("%Y-%m")
+    next_month = (utcnow() + timedelta(days=30)).strftime("%Y-%m")
     forecast = db.query(ROIForecast).filter(
         ROIForecast.organization_id == org_id,
         ROIForecast.forecast_month == next_month
@@ -131,7 +134,55 @@ def get_roi_dashboard(
             "forecasted_impact": forecast.forecasted_impact if forecast else None,
             "confidence": forecast.confidence if forecast else None,
             "trend": forecast.trend if forecast else None,
-        }
+        },
+        "pipeline": get_prediction_pipeline(org_id, db),
+    }
+
+
+def get_prediction_pipeline(org_id: int, db: Session):
+    """
+    Value sitting in open, model-generated actions.
+
+    This is money at stake, NOT money earned: nobody has acted on these yet.
+    It is reported separately from the realized figures above so the two are
+    never added together.
+    """
+
+    actions = db.query(Action).filter(
+        Action.organization_id == org_id,
+        Action.status.in_([ActionStatus.PENDING, ActionStatus.SCHEDULED]),
+    ).all()
+
+    open_actions = [a for a in actions if (a.action_config or {}).get("source") == AUTO_SOURCE]
+
+    at_risk = sum(a.estimated_impact or 0 for a in open_actions if a.impact_type == "revenue_saved")
+    upside = sum(a.estimated_impact or 0 for a in open_actions if a.impact_type == "revenue_created")
+    unvalued = sum(1 for a in open_actions if a.estimated_impact is None)
+
+    top = sorted(
+        (a for a in open_actions if a.estimated_impact),
+        key=lambda a: -a.estimated_impact,
+    )[:5]
+
+    return {
+        "is_realized": False,
+        "description": "Value at stake in open actions your models generated. Not yet earned.",
+        "open_actions": len(open_actions),
+        "revenue_at_risk": round(at_risk, 2),
+        "expansion_upside": round(upside, 2),
+        "total_at_stake": round(at_risk + upside, 2),
+        "actions_without_revenue_data": unvalued,
+        "top_opportunities": [
+            {
+                "customer_id": a.entity_id,
+                "customer_name": a.entity_name,
+                "priority": a.priority,
+                "estimated_impact": a.estimated_impact,
+                "impact_type": a.impact_type,
+                "title": a.title,
+            }
+            for a in top
+        ],
     }
 
 
@@ -161,7 +212,7 @@ def record_impact(
         is_annual=payload.is_annual,
         is_recurring=payload.is_recurring,
         annual_value=payload.annual_value or payload.value_amount,
-        predicted_at=datetime.utcnow()
+        predicted_at=utcnow()
     )
 
     db.add(impact)
@@ -200,7 +251,7 @@ def confirm_impact(
 
     impact.is_confirmed = True
     impact.confirmation_note = outcome_note
-    impact.value_realized_at = datetime.utcnow()
+    impact.value_realized_at = utcnow()
 
     db.commit()
 
@@ -382,7 +433,7 @@ def get_roi_forecast(
 
     forecasts = []
     for i in range(months_ahead):
-        month = (datetime.utcnow() + timedelta(days=30*i)).strftime("%Y-%m")
+        month = (utcnow() + timedelta(days=30*i)).strftime("%Y-%m")
         forecast = db.query(ROIForecast).filter(
             ROIForecast.organization_id == org_id,
             ROIForecast.forecast_month == month
@@ -417,7 +468,7 @@ def get_roi_comparison(
     org_id = current_user.organization_id
 
     # This month
-    this_month_start = datetime.utcnow().replace(day=1)
+    this_month_start = utcnow().replace(day=1)
     this_month = db.query(ROISummary).filter(
         ROISummary.organization_id == org_id,
         ROISummary.period_start == this_month_start
@@ -465,7 +516,7 @@ def calculate_roi_summary(org_id: int, db: Session):
 
     impacts = db.query(ImpactRecord).filter(
         ImpactRecord.organization_id == org_id,
-        ImpactRecord.created_at >= datetime.utcnow().replace(day=1)
+        ImpactRecord.created_at >= utcnow().replace(day=1)
     ).all()
 
     revenue_saved = sum(i.value_amount for i in impacts if i.impact_type == "revenue_saved")
@@ -483,8 +534,8 @@ def calculate_roi_summary(org_id: int, db: Session):
     summary = ROISummary(
         organization_id=org_id,
         period="month",
-        period_start=datetime.utcnow().replace(day=1),
-        period_end=datetime.utcnow(),
+        period_start=utcnow().replace(day=1),
+        period_end=utcnow(),
         revenue_saved=revenue_saved,
         revenue_created=revenue_created,
         efficiency_gain=efficiency_gain,

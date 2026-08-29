@@ -7,10 +7,12 @@ import hashlib
 from app.db.models_saas import Subscription, Invoice, User, Organization, SubscriptionTier
 from app.database import get_db
 from app.services.billing_service import BillingService
+from app.api.marketplace import confirm_marketplace_checkout, fail_marketplace_checkout
 from app.services.email_service import EmailService
 from app.config import settings
 from app.utils import setup_logger
 from app.database import get_db
+from app.utils.time import utcnow
 
 logger = setup_logger(__name__)
 router = APIRouter(prefix="/api/webhooks", tags=["webhooks"])
@@ -69,6 +71,12 @@ async def handle_stripe_webhook(request: Request, db: Session = Depends(get_db))
 
         elif event_type == "charge.refunded":
             handle_charge_refunded(db, data)
+
+        elif event_type == "checkout.session.completed":
+            confirm_marketplace_checkout(db, data)
+
+        elif event_type in ("checkout.session.expired", "checkout.session.async_payment_failed"):
+            fail_marketplace_checkout(db, data)
 
         return {"status": "success"}
 
@@ -238,13 +246,13 @@ def handle_invoice_payment_succeeded(db: Session, data: dict):
                 amount=amount / 100,  # Convert cents to dollars
                 currency=currency,
                 status="paid",
-                invoice_date=datetime.utcnow(),
-                paid_at=datetime.utcnow(),
+                invoice_date=utcnow(),
+                paid_at=utcnow(),
             )
             db.add(invoice)
         else:
             invoice.status = "paid"
-            invoice.paid_at = datetime.utcnow()
+            invoice.paid_at = utcnow()
 
         db.commit()
 

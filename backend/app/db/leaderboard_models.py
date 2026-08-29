@@ -9,6 +9,7 @@ from datetime import datetime
 import enum
 
 from app.db.database import Base
+from app.utils.time import utcnow
 
 # ============================================================================
 # ACHIEVEMENT TYPES & BADGES
@@ -71,7 +72,7 @@ class LeaderboardEntry(Base):
 
     # Metadata
     is_top_performer = Column(Boolean, default=False)  # Top 10%
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     # Relationships
     organization = relationship("Organization")
@@ -112,13 +113,13 @@ class Achievement(Base):
     unlock_percentage = Column(Float, nullable=True)  # What % of users have this?
 
     # Earned at
-    earned_at = Column(DateTime, default=datetime.utcnow, index=True)
+    earned_at = Column(DateTime, default=utcnow, index=True)
     featured = Column(Boolean, default=False)  # Display prominently
 
     # Leaderboard impact
     points_awarded = Column(Integer, default=50)  # Points for achieving this
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     # Relationships
     user = relationship("User")
@@ -177,7 +178,7 @@ class UserStats(Base):
     featured_achievements = Column(Integer, default=0)
 
     # Updated
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     user = relationship("User")
@@ -219,7 +220,7 @@ class UserActivity(Base):
     # Reactions
     reaction_count = Column(Integer, default=0)  # Emoji reactions (👏, ❤️, 🔥, etc)
 
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
 
     # Relationships
     user = relationship("User")

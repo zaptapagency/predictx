@@ -13,6 +13,7 @@ from app.db.models_saas import User, Organization
 from app.db.leaderboard_models import LeaderboardEntry, Achievement, UserStats, UserActivity
 from app.db.database import get_db
 from app.services.auth_service import get_current_user
+from app.utils.time import utcnow
 
 router = APIRouter(prefix="/api/leaderboard", tags=["leaderboard"])
 
@@ -51,7 +52,7 @@ def get_leaderboard(
     org_id = current_user.organization_id
 
     # Determine period dates
-    now = datetime.utcnow()
+    now = utcnow()
     if period == "day":
         period_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     elif period == "week":

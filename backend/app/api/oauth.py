@@ -15,6 +15,7 @@ from app.db.models_saas import User, Organization
 from app.services.auth_service import create_access_token, hash_password
 from app.config import settings
 from app.db.database import get_db
+from app.utils.time import utcnow
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -49,7 +50,7 @@ def find_or_create_organization(db: Session, domain: str, email: str) -> Organiz
     new_org = Organization(
         name=company_name,
         domain=domain,
-        created_at=datetime.utcnow(),
+        created_at=utcnow(),
     )
     db.add(new_org)
     db.flush()  # Get the ID without committing
@@ -92,16 +93,22 @@ def google_oauth(
                 detail="No credential provided"
             )
 
+        if not settings.GOOGLE_OAUTH_CLIENT_ID:
+            raise HTTPException(
+                status_code=503,
+                detail="Google sign-in is not configured. Set GOOGLE_OAUTH_CLIENT_ID.",
+            )
+
         try:
             # Verify token with Google's public key (cached by requests library)
             idinfo = id_token.verify_oauth2_token(
                 credential,
                 requests.Request(),
-                settings.GOOGLE_CLIENT_ID
+                settings.GOOGLE_OAUTH_CLIENT_ID
             )
 
             # Verify token wasn't used for a different app
-            if idinfo['aud'] != settings.GOOGLE_CLIENT_ID:
+            if idinfo['aud'] != settings.GOOGLE_OAUTH_CLIENT_ID:
                 raise ValueError('Token audience mismatch')
 
         except ValueError as e:
@@ -147,12 +154,12 @@ def google_oauth(
                 picture_url=picture,
                 email_verified=True,  # Email verified by Google
                 is_active=True,
-                created_at=datetime.utcnow(),
+                created_at=utcnow(),
             )
             db.add(user)
         else:
             # Existing user - update last login
-            user.last_login = datetime.utcnow()
+            user.last_login = utcnow()
 
             # If user is in different org, link them
             if not user.organization_id:
@@ -219,6 +226,15 @@ def microsoft_oauth_callback(
         # Exchange code for token (in production, do this server-to-server)
         # This is simplified - in production use msal library
 
+        if not settings.MICROSOFT_CLIENT_ID or not settings.MICROSOFT_CLIENT_SECRET:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Microsoft sign-in is not configured. "
+                    "Set MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET."
+                ),
+            )
+
         import requests as http_requests
 
         token_url = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
@@ -273,11 +289,11 @@ def microsoft_oauth_callback(
                 organization_id=organization.id,
                 email_verified=True,
                 is_active=True,
-                created_at=datetime.utcnow(),
+                created_at=utcnow(),
             )
             db.add(user)
         else:
-            user.last_login = datetime.utcnow()
+            user.last_login = utcnow()
             if not user.organization_id:
                 user.organization_id = organization.id
 

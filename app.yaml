@@ -31,11 +31,11 @@ services:
   github:
     branch: main
     repo: yourusername/universalpredict
-    build_command: cd frontend && npm install && npm run build
+    # The front end is the static page in frontend/public, served by
+    # frontend/app.js. There is no bundler step: package.json has no build
+    # script, so the old "npm run build" here could never have succeeded.
+    build_command: cd frontend && npm install
   dockerfile_path: frontend/Dockerfile
-  envs:
-  - key: REACT_APP_API_URL
-    value: https://${APP_DOMAIN}/api
   http_port: 3000
   routes:
   - path: /

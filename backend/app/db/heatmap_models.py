@@ -8,6 +8,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 
 from app.db.database import Base
+from app.utils.time import utcnow
 
 
 class CustomerHealthScore(Base):
@@ -37,7 +38,7 @@ class CustomerHealthScore(Base):
     green_flags = Column(Integer, default=0)
 
     # Last update
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, index=True)
 
     # Relationships
     organization = relationship("Organization")
@@ -67,7 +68,7 @@ class HealthMetric(Base):
     description = Column(Text, nullable=True)
     recommended_action = Column(String(255), nullable=True)
 
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     health_score = relationship("CustomerHealthScore")

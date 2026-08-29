@@ -9,6 +9,7 @@ from app.services.email_service import EmailService
 from app.config import settings
 from app.utils import setup_logger
 from app.database import get_db
+from app.utils.time import utcnow
 
 logger = setup_logger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -199,7 +200,7 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
             raise HTTPException(status_code=403, detail="Account is inactive")
 
         # Update last login
-        user.last_login = datetime.utcnow()
+        user.last_login = utcnow()
         db.commit()
 
         # Create tokens

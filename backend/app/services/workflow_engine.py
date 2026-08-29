@@ -17,6 +17,11 @@ from app.db.workflow_models import (
     Workflow, WorkflowExecution, WorkflowActionExecution, WorkflowAction, ExecutionStatus
 )
 from app.db.connector_models import DataConnection
+from app.utils.time import utcnow
+from app.services.channels import (
+    ChannelError, DeliveryResult, deliver_email, deliver_salesforce_task,
+    deliver_slack, deliver_webhook,
+)
 
 
 class WorkflowEngine:
@@ -55,7 +60,7 @@ class WorkflowEngine:
             prediction_id=prediction_id,
             status=ExecutionStatus.RUNNING,
             trigger_data=trigger_data,
-            started_at=datetime.utcnow()
+            started_at=utcnow()
         )
 
         self.db.add(execution)
@@ -93,10 +98,23 @@ class WorkflowEngine:
                 )
                 results.append(action_result)
 
-            # Update execution
-            execution.status = ExecutionStatus.SUCCESS
+            # A workflow is only successful if its steps were. Individual
+            # failures are captured per action, so check them before
+            # declaring the run a success.
+            step_failures = [r for r in results if r.get("status") == ExecutionStatus.FAILED.value]
+            if step_failures and len(step_failures) == len(results):
+                execution.status = ExecutionStatus.FAILED
+                execution.error_message = step_failures[0].get("error")
+            elif step_failures:
+                execution.status = ExecutionStatus.PARTIAL
+                execution.error_message = (
+                    f"{len(step_failures)} of {len(results)} steps failed: "
+                    f"{step_failures[0].get('error')}"
+                )
+            else:
+                execution.status = ExecutionStatus.SUCCESS
             execution.execution_results = results
-            execution.completed_at = datetime.utcnow()
+            execution.completed_at = utcnow()
             execution.duration_seconds = (
                 execution.completed_at - execution.started_at
             ).total_seconds()
@@ -104,7 +122,7 @@ class WorkflowEngine:
         except Exception as e:
             execution.status = ExecutionStatus.FAILED
             execution.error_message = str(e)
-            execution.completed_at = datetime.utcnow()
+            execution.completed_at = utcnow()
             execution.duration_seconds = (
                 execution.completed_at - execution.started_at
             ).total_seconds()
@@ -129,18 +147,20 @@ class WorkflowEngine:
             action_id=action.id,
             sequence=action.sequence,
             status=ExecutionStatus.RUNNING,
-            started_at=datetime.utcnow()
+            started_at=utcnow()
         )
 
         try:
             config = action.config
             action_type = action.action_type.value
 
+            org_id = execution.organization_id
+
             if action_type == "email":
-                result = self._execute_email(config, trigger_data)
+                result = self._execute_email(org_id, config, trigger_data)
 
             elif action_type == "slack":
-                result = self._execute_slack(config, trigger_data)
+                result = self._execute_slack(org_id, config, trigger_data)
 
             elif action_type == "salesforce":
                 result = self._execute_salesforce(
@@ -151,10 +171,10 @@ class WorkflowEngine:
                 )
 
             elif action_type == "webhook":
-                result = self._execute_webhook(config, trigger_data)
+                result = self._execute_webhook(org_id, config, trigger_data)
 
             elif action_type == "task":
-                result = self._execute_task(config, trigger_data)
+                result = self._execute_task(org_id, config, trigger_data)
 
             else:
                 raise ValueError(f"Unknown action type: {action_type}")
@@ -167,7 +187,7 @@ class WorkflowEngine:
             action_exec.status = ExecutionStatus.FAILED
             action_exec.error_message = str(e)
 
-        action_exec.completed_at = datetime.utcnow()
+        action_exec.completed_at = utcnow()
         action_exec.duration_seconds = (
             action_exec.completed_at - action_exec.started_at
         ).total_seconds()
@@ -178,37 +198,32 @@ class WorkflowEngine:
         return {
             "action_id": action.id,
             "status": action_exec.status.value,
-            "external_id": action_exec.external_id
+            "external_id": action_exec.external_id,
+            "error": action_exec.error_message,
         }
 
-    def _execute_email(self, config: Dict, data: Dict) -> Dict:
-        """Send email"""
+    def _execute_email(self, org_id: int, config: Dict, data: Dict) -> Dict:
+        """Send a real email."""
         to = self._render_template(config.get("to_field"), data)
         subject = self._render_template(config.get("subject_template"), data)
-        body = self._render_template(config.get("body_template"), data)
+        body = self._render_template(config.get("body_template"), data) or ""
 
-        # TODO: Use email service (SendGrid, AWS SES, etc)
-        # For now, log
-        print(f"EMAIL: {to} | {subject}")
+        paragraphs = "".join(f"<p>{line}</p>" for line in str(body).split("\n") if line.strip())
+        result = deliver_email(
+            self.db, org_id,
+            to=to, subject=subject or "A message from your team",
+            body_html=f"<html><body>{paragraphs}</body></html>", body_text=str(body),
+        )
+        return {"response_data": result.response_data, "external_id": result.external_id}
 
-        return {
-            "response_data": {"sent": True},
-            "external_id": f"email_{datetime.utcnow().timestamp()}"
-        }
-
-    def _execute_slack(self, config: Dict, data: Dict) -> Dict:
-        """Send Slack message"""
-        channel = config.get("channel")
+    def _execute_slack(self, org_id: int, config: Dict, data: Dict) -> Dict:
+        """Post a real Slack message."""
         message = self._render_template(config.get("message_template"), data)
-
-        # TODO: Use Slack SDK
-        # For now, log
-        print(f"SLACK: {channel} | {message}")
-
-        return {
-            "response_data": {"sent": True},
-            "external_id": f"slack_{datetime.utcnow().timestamp()}"
-        }
+        result = deliver_slack(
+            self.db, org_id,
+            text=str(message), webhook_url=config.get("webhook_url"),
+        )
+        return {"response_data": result.response_data, "external_id": result.external_id}
 
     def _execute_salesforce(
         self,
@@ -217,66 +232,75 @@ class WorkflowEngine:
         customer_id: str,
         data: Dict
     ) -> Dict:
-        """Update Salesforce record"""
-        object_type = config.get("object")  # Account, Contact, Opportunity
-        action = config.get("action")  # create, update
-        field_mapping = config.get("field_mapping")  # {sf_field: template}
+        """
+        Create a Salesforce task from the workflow step.
 
-        # Build payload
-        payload = {}
-        for sf_field, template in field_mapping.items():
-            payload[sf_field] = self._render_template(template, data)
+        The engine's original contract was arbitrary field updates on any
+        object. That needs write support the Salesforce connector does not
+        have yet, so this delivers the one write we can make safely and the
+        field_mapping is rendered into the task description rather than
+        silently dropped.
+        """
+        field_mapping = config.get("field_mapping") or {}
+        rendered = {k: self._render_template(v, data) for k, v in field_mapping.items()}
+        details = "\n".join(f"{k}: {v}" for k, v in rendered.items())
 
-        # TODO: Get Salesforce connection, update record
-        # For now, log
-        print(f"SALESFORCE: {object_type} {action} | {payload}")
-
-        return {
-            "response_data": {"updated": True},
-            "external_id": f"sf_{customer_id}"
-        }
-
-    def _execute_webhook(self, config: Dict, data: Dict) -> Dict:
-        """Call webhook"""
-        url = config.get("url")
-        method = config.get("method", "POST")
-        headers = config.get("headers", {})
-        payload_template = config.get("payload_template", {})
-
-        # Render payload
-        payload = self._render_template(payload_template, data)
-
-        # Call webhook
-        response = requests.request(
-            method,
-            url,
-            json=payload,
-            headers=headers,
-            timeout=30
+        result = deliver_salesforce_task(
+            self.db, org_id,
+            subject=self._render_template(config.get("subject"), data) or f"Follow up: {customer_id}",
+            description=details,
+            account_id=config.get("account_id"),
+            contact_id=config.get("contact_id"),
         )
+        return {"response_data": result.response_data, "external_id": result.external_id}
 
-        return {
-            "response_data": {
-                "status_code": response.status_code,
-                "response": response.text[:500]
-            },
-            "external_id": f"webhook_{response.status_code}"
-        }
+    def _execute_webhook(self, org_id: int, config: Dict, data: Dict) -> Dict:
+        """Call the configured webhook."""
+        payload = self._render_template(config.get("payload_template", {}), data)
+        result = deliver_webhook(
+            self.db, org_id,
+            payload=payload if isinstance(payload, dict) else {"payload": payload},
+            url=config.get("url"),
+            method=config.get("method", "POST"),
+            headers=config.get("headers"),
+        )
+        return {"response_data": result.response_data, "external_id": result.external_id}
 
-    def _execute_task(self, config: Dict, data: Dict) -> Dict:
-        """Create task"""
+    def _execute_task(self, org_id: int, config: Dict, data: Dict) -> Dict:
+        """
+        Create a real task in the Action Center.
+
+        Workflow tasks used to be a print statement. They now become Action
+        rows, which means they show up in the same queue as model-generated
+        work and can be executed and tracked there.
+        """
+        from app.db.action_models import Action, ActionPriority, ActionStatus
+
         title = self._render_template(config.get("title_template"), data)
         description = self._render_template(config.get("description_template"), data)
         owner_id = config.get("owner_id")
 
-        # TODO: Create task in task management system
-        # For now, log
-        print(f"TASK: {title} | {description}")
+        if not title:
+            raise ChannelError("Task step has no title_template, so there is nothing to create.")
 
-        return {
-            "response_data": {"created": True},
-            "external_id": f"task_{datetime.utcnow().timestamp()}"
-        }
+        task = Action(
+            organization_id=org_id,
+            title=str(title),
+            description=str(description or ""),
+            action_type="task",
+            priority=config.get("priority") or ActionPriority.MEDIUM,
+            status=ActionStatus.PENDING,
+            entity_type="customer",
+            entity_id=str(data.get("customer_id") or "unknown"),
+            entity_name=str(data.get("customer_name") or data.get("customer_id") or "Unknown"),
+            assigned_to_id=owner_id,
+            action_config={"source": "workflow"},
+        )
+        self.db.add(task)
+        self.db.flush()
+
+        return {"response_data": {"action_id": task.id, "title": task.title},
+                "external_id": f"action_{task.id}"}
 
     def _render_template(self, template: Any, data: Dict) -> Any:
         """
@@ -338,7 +362,33 @@ class WorkflowEngine:
             return False
 
     def _matches_segment(self, customer_id: str, segment_filter: Dict) -> bool:
-        """Check if customer matches segment"""
-        # TODO: Query customer segment membership
-        # For now, return true
+        """
+        Check a customer against a segment filter.
+
+        The filter is a dict of field -> expected value, matched against the
+        customer's most recent synced record. An unknown field does not match:
+        a filter nobody can satisfy should send nothing, not everything.
+        """
+        from app.db.connector_models import CustomerData
+
+        if not segment_filter:
+            return True
+
+        record = self.db.query(CustomerData).filter(
+            CustomerData.customer_id == customer_id
+        ).order_by(CustomerData.synced_at.desc()).first()
+
+        if not record:
+            return False
+
+        fields = {str(k).lower(): v for k, v in (record.customer_data or {}).items()}
+
+        for field, expected in segment_filter.items():
+            actual = fields.get(str(field).lower())
+            if isinstance(expected, list):
+                if actual not in expected:
+                    return False
+            elif str(actual) != str(expected):
+                return False
+
         return True

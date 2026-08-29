@@ -11,6 +11,7 @@ from datetime import datetime
 import enum
 
 from app.db.database import Base
+from app.utils.time import utcnow
 
 # ============================================================================
 # TEAM MEMBER ROLES
@@ -49,7 +50,7 @@ class TeamMember(Base):
     can_manage_team = Column(Boolean, default=False)         # Admin only
 
     # Activity tracking
-    joined_at = Column(DateTime, default=datetime.utcnow)
+    joined_at = Column(DateTime, default=utcnow)
     last_login = Column(DateTime, nullable=True)
     login_count = Column(Integer, default=0)
 
@@ -81,7 +82,7 @@ class TeamInvitation(Base):
 
     # Invitation token & expiration
     token = Column(String(36), unique=True, nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
     expires_at = Column(DateTime, nullable=False)
 
     # Acceptance tracking
@@ -92,7 +93,7 @@ class TeamInvitation(Base):
     invited_by = relationship("User")
 
     def is_expired(self) -> bool:
-        return datetime.utcnow() > self.expires_at
+        return utcnow() > self.expires_at
 
     def is_accepted(self) -> bool:
         return self.accepted_at is not None
@@ -124,7 +125,7 @@ class TeamActivityLog(Base):
 
     details = Column(Text, nullable=True)  # JSON with additional context
 
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
 
     def __repr__(self):
         return f"<TeamActivityLog {self.action} by user {self.user_id}>"

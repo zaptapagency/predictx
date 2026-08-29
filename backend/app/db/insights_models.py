@@ -8,6 +8,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 
 from app.db.database import Base
+from app.utils.time import utcnow
 
 
 class Insight(Base):
@@ -42,7 +43,7 @@ class Insight(Base):
     related_entity = Column(String(255), nullable=True)  # customer_name, playbook_id, etc
     meta_data = Column("metadata", JSON, nullable=True)  # Additional context
 
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
 
     # Relationships
     user = relationship("User")
@@ -75,7 +76,7 @@ class InsightPreference(Base):
     include_milestones = Column(Boolean, default=True)
     include_team_updates = Column(Boolean, default=True)
 
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     user = relationship("User")
