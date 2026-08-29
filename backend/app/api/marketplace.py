@@ -13,7 +13,10 @@ from sqlalchemy import desc, func
 from pydantic import BaseModel, EmailStr
 from datetime import datetime, timedelta
 import uuid
+import stripe
 
+from app.config import settings
+from app.utils import setup_logger
 from app.db.models_saas import User, Organization
 from app.db.marketplace_models import (
     Playbook, PlaybookReview, PlaybookPurchase, CreatorEarnings,
@@ -22,9 +25,15 @@ from app.db.marketplace_models import (
 from app.services.email_service import EmailService
 from app.db.database import get_db
 from app.services.auth_service import get_current_user
+from app.utils.time import utcnow
 
 router = APIRouter(prefix="/api/marketplace", tags=["marketplace"])
 email_service = EmailService()
+logger = setup_logger(__name__)
+
+stripe.api_key = settings.STRIPE_API_KEY
+
+CREATOR_REVENUE_SHARE = 0.70
 
 # ============================================================================
 # REQUEST/RESPONSE MODELS
@@ -316,8 +325,11 @@ def purchase_playbook(
     db: Session = Depends(get_db)
 ):
     """
-    Purchase/subscribe to a playbook
-    Handles payment via Stripe
+    Purchase/subscribe to a playbook.
+
+    Paid playbooks start a Stripe Checkout Session and return its URL. The
+    purchase stays pending — no access, no creator revenue — until Stripe
+    confirms payment through the webhook.
     """
 
     playbook = db.query(Playbook).filter(Playbook.id == playbook_id).first()
@@ -345,39 +357,211 @@ def purchase_playbook(
     else:
         price_paid = playbook.price_monthly
 
-    # TODO: Integrate with Stripe to actually charge
-    # For now, simulate purchase
+    # Free playbooks never touch Stripe — grant immediately.
+    if price_paid <= 0:
+        purchase = PlaybookPurchase(
+            playbook_id=playbook_id,
+            organization_id=current_user.organization_id,
+            purchased_by_id=current_user.id,
+            license_type=license_type,
+            price_paid=0.0,
+            payment_status="free",
+            is_active=True,
+            started_at=utcnow(),
+        )
+        if license_type == "yearly":
+            purchase.expires_at = utcnow() + timedelta(days=365)
 
-    purchase = PlaybookPurchase(
-        playbook_id=playbook_id,
-        organization_id=current_user.organization_id,
-        purchased_by_id=current_user.id,
-        license_type=license_type,
-        price_paid=price_paid,
-        is_active=True,
-        started_at=datetime.utcnow(),
-    )
+        db.add(purchase)
+        playbook.downloads += 1
+        playbook.active_users += 1
+        db.commit()
 
-    if license_type == "yearly":
-        purchase.expires_at = datetime.utcnow() + timedelta(days=365)
+        return {
+            "success": True,
+            "status": "active",
+            "message": "Successfully subscribed to playbook",
+            "playbook": playbook.name,
+            "license_type": license_type,
+            "price_paid": 0.0,
+            "expires_at": purchase.expires_at,
+        }
 
-    db.add(purchase)
+    # A paid playbook without Stripe configured must fail loudly rather than
+    # handing out the playbook for free.
+    if not settings.STRIPE_API_KEY:
+        logger.error("Marketplace purchase attempted with no STRIPE_API_KEY configured")
+        raise HTTPException(
+            status_code=503,
+            detail="Payments are not configured on this deployment. Playbook cannot be purchased.",
+        )
 
-    # Update playbook metrics
-    playbook.downloads += 1
-    playbook.active_users += 1
-    playbook.total_revenue += price_paid
+    # Reuse the org's outstanding attempt so repeated clicks don't pile up rows.
+    purchase = db.query(PlaybookPurchase).filter(
+        PlaybookPurchase.playbook_id == playbook_id,
+        PlaybookPurchase.organization_id == current_user.organization_id,
+        PlaybookPurchase.payment_status == "pending"
+    ).first()
 
+    if purchase is None:
+        purchase = PlaybookPurchase(
+            playbook_id=playbook_id,
+            organization_id=current_user.organization_id,
+            purchased_by_id=current_user.id,
+        )
+        db.add(purchase)
+
+    purchase.license_type = license_type
+    purchase.price_paid = price_paid
+    purchase.payment_status = "pending"
+    purchase.is_active = False
+    purchase.started_at = None
+    purchase.expires_at = None
+    db.flush()
+
+    try:
+        checkout = stripe.checkout.Session.create(
+            mode="payment",
+            success_url=f"{settings.FRONTEND_URL}/marketplace/{playbook.slug}?purchase=success",
+            cancel_url=f"{settings.FRONTEND_URL}/marketplace/{playbook.slug}?purchase=cancelled",
+            customer_email=current_user.email,
+            line_items=[{
+                "quantity": 1,
+                "price_data": {
+                    "currency": "usd",
+                    "unit_amount": int(round(price_paid * 100)),
+                    "product_data": {"name": playbook.name},
+                },
+            }],
+            metadata={
+                "purchase_id": str(purchase.id),
+                "playbook_id": str(playbook.id),
+                "organization_id": str(current_user.organization_id),
+            },
+        )
+    except stripe.error.CardError as e:
+        purchase.payment_status = "failed"
+        db.commit()
+        logger.warning(f"Card declined for playbook {playbook_id}: {str(e)}")
+        raise HTTPException(status_code=402, detail=f"Card declined: {e.user_message or str(e)}")
+    except stripe.error.StripeError as e:
+        purchase.payment_status = "failed"
+        db.commit()
+        logger.error(f"Stripe error starting playbook purchase {playbook_id}: {str(e)}")
+        raise HTTPException(status_code=502, detail="Payment provider error. Playbook was not purchased.")
+
+    purchase.stripe_checkout_session_id = checkout.get("id") if isinstance(checkout, dict) else checkout.id
     db.commit()
 
     return {
         "success": True,
-        "message": "Successfully subscribed to playbook",
+        "status": "pending",
+        "message": "Complete payment to activate this playbook",
         "playbook": playbook.name,
         "license_type": license_type,
         "price_paid": price_paid,
-        "expires_at": purchase.expires_at,
+        "purchase_id": purchase.id,
+        "checkout_session_id": purchase.stripe_checkout_session_id,
+        "checkout_url": checkout.get("url") if isinstance(checkout, dict) else checkout.url,
     }
+
+
+def confirm_marketplace_checkout(db: Session, session_data: dict) -> bool:
+    """
+    Grant playbook access after Stripe confirms a marketplace checkout.
+
+    Called from the Stripe webhook — this is the only place a paid purchase
+    becomes active and the only place creator revenue is credited.
+    """
+
+    purchase_id = (session_data.get("metadata") or {}).get("purchase_id")
+    if not purchase_id:
+        return False  # not a marketplace checkout
+
+    purchase = db.query(PlaybookPurchase).filter(
+        PlaybookPurchase.id == int(purchase_id)
+    ).first()
+
+    if not purchase:
+        logger.warning(f"Marketplace checkout for unknown purchase: {purchase_id}")
+        return False
+
+    if purchase.payment_status == "paid":
+        return True  # webhooks can be redelivered
+
+    if session_data.get("payment_status") != "paid":
+        purchase.payment_status = "failed"
+        db.commit()
+        logger.warning(f"Marketplace checkout not paid for purchase {purchase.id}")
+        return False
+
+    playbook = db.query(Playbook).filter(Playbook.id == purchase.playbook_id).first()
+    if not playbook:
+        logger.error(f"Purchase {purchase.id} references missing playbook")
+        return False
+
+    purchase.payment_status = "paid"
+    purchase.is_active = True
+    purchase.started_at = utcnow()
+    purchase.stripe_payment_intent_id = session_data.get("payment_intent")
+    if purchase.license_type == "yearly":
+        purchase.expires_at = utcnow() + timedelta(days=365)
+
+    playbook.downloads += 1
+    playbook.active_users += 1
+    playbook.total_revenue += purchase.price_paid
+
+    _credit_creator(db, playbook, purchase.price_paid)
+
+    db.commit()
+    logger.info(f"Marketplace purchase {purchase.id} paid and activated")
+    return True
+
+
+def fail_marketplace_checkout(db: Session, session_data: dict) -> bool:
+    """Mark a marketplace purchase failed when Stripe reports the payment did not go through."""
+
+    purchase_id = (session_data.get("metadata") or {}).get("purchase_id")
+    if not purchase_id:
+        return False
+
+    purchase = db.query(PlaybookPurchase).filter(
+        PlaybookPurchase.id == int(purchase_id)
+    ).first()
+
+    if not purchase or purchase.payment_status == "paid":
+        return False
+
+    purchase.payment_status = "failed"
+    purchase.is_active = False
+    db.commit()
+    logger.info(f"Marketplace purchase {purchase.id} marked failed")
+    return True
+
+
+def _credit_creator(db: Session, playbook: Playbook, amount: float):
+    """Accrue the creator's share into the current month's earnings row."""
+
+    month = utcnow().strftime("%Y-%m")
+    earnings = db.query(CreatorEarnings).filter(
+        CreatorEarnings.creator_id == playbook.creator_id,
+        CreatorEarnings.playbook_id == playbook.id,
+        CreatorEarnings.month == month
+    ).first()
+
+    if not earnings:
+        earnings = CreatorEarnings(
+            playbook_id=playbook.id,
+            creator_id=playbook.creator_id,
+            month=month,
+        )
+        db.add(earnings)
+
+    earnings.total_revenue = (earnings.total_revenue or 0.0) + amount
+    earnings.creator_share = (earnings.creator_share or 0.0) + amount * CREATOR_REVENUE_SHARE
+    earnings.forecastx_share = (earnings.forecastx_share or 0.0) + amount * (1 - CREATOR_REVENUE_SHARE)
+    earnings.purchases_count = (earnings.purchases_count or 0) + 1
+    earnings.active_subscriptions = (earnings.active_subscriptions or 0) + 1
 
 
 # ============================================================================
@@ -478,7 +662,7 @@ def creator_dashboard(
     playbook_ids = [p.id for p in playbooks]
 
     # Get earnings for current month
-    current_month = datetime.utcnow().strftime("%Y-%m")
+    current_month = utcnow().strftime("%Y-%m")
     earnings = db.query(CreatorEarnings).filter(
         CreatorEarnings.creator_id == current_user.id,
         CreatorEarnings.month == current_month

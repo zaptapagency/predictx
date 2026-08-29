@@ -12,6 +12,7 @@ from datetime import datetime
 import enum
 
 from app.db.database import Base
+from app.utils.time import utcnow
 
 # ============================================================================
 # PLAYBOOK STATUS
@@ -68,8 +69,8 @@ class Playbook(Base):
     # Status & publishing
     status = Column(String(50), default=PlaybookStatus.DRAFT)
     published_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow, index=True)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Metadata
     success_rate = Column(Float, nullable=True)  # e.g., 0.78 = 78% success
@@ -113,7 +114,7 @@ class PlaybookReview(Base):
     would_recommend = Column(Boolean, default=True)
 
     # Metadata
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
     helpful_count = Column(Integer, default=0)  # How many found this review helpful
 
     # Relationships
@@ -142,12 +143,16 @@ class PlaybookPurchase(Base):
 
     # Purchase details
     stripe_subscription_id = Column(String(255), nullable=True)  # Stripe sub ID
+    stripe_checkout_session_id = Column(String(255), nullable=True, index=True)
+    stripe_payment_intent_id = Column(String(255), nullable=True)
+    # pending until Stripe confirms; access and creator revenue depend on this
+    payment_status = Column(String(50), default="pending")  # pending, paid, failed, free
     license_type = Column(String(50), default="monthly")  # monthly, yearly, lifetime
     price_paid = Column(Float, nullable=False)  # What they paid
 
     # Subscription status
     is_active = Column(Boolean, default=True)
-    started_at = Column(DateTime, default=datetime.utcnow)
+    started_at = Column(DateTime, default=utcnow)
     expires_at = Column(DateTime, nullable=True)  # For yearly/lifetime
     cancelled_at = Column(DateTime, nullable=True)
 
@@ -198,7 +203,7 @@ class CreatorEarnings(Base):
     stripe_transfer_id = Column(String(255), nullable=True)
 
     # Metadata
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     def __repr__(self):
         return f"<CreatorEarnings {self.creator.email} - {self.month}: ${self.creator_share}>"
@@ -215,7 +220,7 @@ class MarketplaceAnalytics(Base):
     __tablename__ = "marketplace_analytics"
 
     id = Column(Integer, primary_key=True)
-    date = Column(DateTime, default=datetime.utcnow, index=True, unique=True)
+    date = Column(DateTime, default=utcnow, index=True, unique=True)
 
     # Platform metrics
     total_playbooks = Column(Integer, default=0)
