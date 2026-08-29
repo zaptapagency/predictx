@@ -13,12 +13,33 @@ from app.utils.time import utcnow
 
 
 class ModelType(str, enum.Enum):
-    """Types of prediction models"""
+    """
+    A label for organizing models in the UI. Does NOT determine whether a high
+    score is good or bad news -- see Model.outcome_direction for that. A user
+    training on a "profitable" or "converted" outcome may reasonably pick none
+    of these; OTHER exists for that case.
+    """
     CHURN = "churn"
     OPPORTUNITY = "opportunity"
     EXPANSION = "expansion"
     HEALTH = "health"
     NPS = "nps"
+    OTHER = "other"
+
+
+class OutcomeDirection(str, enum.Enum):
+    """
+    Whether a high score is bad news or good news for the customer.
+
+    This used to be inferred from model_type (CHURN/NPS -> risk, everything
+    else -> opportunity), which broke the moment a user trained on their own
+    outcome column: a "profitable" model defaulted to model_type=churn and so
+    was read as risk, inverting Heatmap health scores and firing Actions on
+    the best customers instead of the worst. Direction is now stated
+    explicitly at training time instead of guessed from a fixed taxonomy.
+    """
+    RISK = "risk"                # high score = bad news (churn, complaint, default)
+    OPPORTUNITY = "opportunity"  # high score = good news (conversion, renewal, upsell)
 
 
 class ModelStatus(str, enum.Enum):
@@ -49,6 +70,9 @@ class Model(Base):
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
     name = Column(String(255), nullable=False)
     model_type = Column(Enum(ModelType), nullable=False)
+    # See OutcomeDirection docstring. Non-nullable with a default rather than
+    # inferred, so every model states this explicitly instead of guessing.
+    outcome_direction = Column(Enum(OutcomeDirection), nullable=False, default=OutcomeDirection.RISK)
     description = Column(Text)
 
     # Model configuration

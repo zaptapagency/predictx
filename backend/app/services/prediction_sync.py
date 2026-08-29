@@ -22,15 +22,19 @@ from sqlalchemy.orm import Session
 from app.db.action_models import Action, ActionPriority, ActionStatus, ActionType
 from app.db.connector_models import CustomerData
 from app.db.heatmap_models import CustomerHealthScore, HealthMetric
-from app.db.prediction_models import Model, ModelType, Prediction
+from app.db.prediction_models import Model, OutcomeDirection, Prediction
 from app.utils.time import utcnow
 
 # Marks the actions/health rows this module owns, so re-scoring can replace its
 # own output without touching anything a user created by hand.
 AUTO_SOURCE = "prediction_sync"
 
-# Model types where a HIGH score is bad news (risk) rather than good (upside).
-RISK_MODEL_TYPES = {ModelType.CHURN, ModelType.NPS}
+# Direction now lives on the model itself (Model.outcome_direction), set
+# explicitly at training time -- see OutcomeDirection. It used to be inferred
+# from a fixed set of model_type values, which broke the moment a model was
+# trained on an outcome that did not fit that taxonomy: a "profitable" model
+# defaulted to model_type=churn and so was read as risk, inverting health
+# scores and firing Actions on the best customers instead of the worst.
 
 # Only these bands are worth interrupting someone for.
 ACTIONABLE_BANDS = ("critical", "high")
@@ -207,10 +211,20 @@ def _sync_health_scores(
 # actions -> Action Center
 # ---------------------------------------------------------------------------
 
-_ACTION_COPY = {
+# Copy differs by direction: for a risk model "high band" means about to
+# churn, so the language is retention-flavoured; for an opportunity model the
+# same band means unlikely to convert, so it is not "retention" language at
+# all -- there is nothing to retain yet.
+_ACTION_COPY_RISK = {
     "reach_out_now": (ActionType.PHONE_CALL, "Call {name} today"),
     "offer_discount": (ActionType.EMAIL, "Email {name} a retention offer"),
     "schedule_qbr": (ActionType.MEETING, "Book a business review with {name}"),
+    "monitor": (ActionType.TASK, "Keep an eye on {name}"),
+}
+_ACTION_COPY_OPPORTUNITY = {
+    "reach_out_now": (ActionType.PHONE_CALL, "Call {name} today"),
+    "offer_discount": (ActionType.EMAIL, "Email {name} an offer to help them convert"),
+    "schedule_qbr": (ActionType.MEETING, "Book a call to move {name} forward"),
     "monitor": (ActionType.TASK, "Keep an eye on {name}"),
 }
 
@@ -263,7 +277,8 @@ def _sync_actions(
 
         attrs = attributes.get(prediction.customer_id, {})
         name = attrs.get("name") or prediction.customer_id
-        action_type, title_template = _ACTION_COPY.get(
+        copy_table = _ACTION_COPY_RISK if is_risk_model else _ACTION_COPY_OPPORTUNITY
+        action_type, title_template = copy_table.get(
             prediction.recommended_action, (ActionType.TASK, "Follow up with {name}")
         )
         impact = _estimate_impact(float(prediction.score), attrs.get("annual_revenue"), is_risk_model)
@@ -322,7 +337,7 @@ def sync_from_predictions(db: Session, org_id: int, model: Model, predictions: L
     if not predictions:
         return {"health_scores_updated": 0, "actions_created": 0, "revenue_at_risk": 0.0}
 
-    is_risk_model = model.model_type in RISK_MODEL_TYPES
+    is_risk_model = model.outcome_direction == OutcomeDirection.RISK
     customer_ids = [p.customer_id for p in predictions]
 
     # Each customer's score from the run before this one, for trend direction.

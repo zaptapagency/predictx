@@ -20,7 +20,7 @@ from app.db.database import get_db
 from app.db.models_saas import User
 from app.db.connector_models import CustomerData, DataSource
 from app.db.prediction_models import (
-    Model, ModelArtifact, ModelStatus, ModelType, Prediction, TrainingRun,
+    Model, ModelArtifact, ModelStatus, ModelType, OutcomeDirection, Prediction, TrainingRun,
 )
 from app.services.auth_service import get_current_user
 from app.services.prediction_sync import sync_from_predictions
@@ -41,6 +41,22 @@ LEAKAGE_AUC = 0.98
 TRUTHY = {"1", "true", "yes", "y", "churned", "churn", "lost"}
 FALSEY = {"0", "false", "no", "n", "active", "retained", "kept"}
 
+# Words in a label column's name that suggest which way a high score points.
+# A guess only -- outcome_direction on the request always overrides it. Risk
+# is checked first and wins a tie, since assuming risk fires an Action rather
+# than staying silent, and a wrongly-silent opportunity is the worse failure.
+_RISK_WORDS = ("churn", "cancel", "lost", "complaint", "default", "risk", "fraud")
+_OPPORTUNITY_WORDS = ("convert", "purchase", "renew", "upsell", "profit", "success", "win")
+
+
+def _infer_direction(label_column: str) -> str:
+    name = label_column.lower()
+    if any(w in name for w in _RISK_WORDS):
+        return OutcomeDirection.RISK.value
+    if any(w in name for w in _OPPORTUNITY_WORDS):
+        return OutcomeDirection.OPPORTUNITY.value
+    return OutcomeDirection.RISK.value
+
 
 class TrainRequest(BaseModel):
     data_source_id: int
@@ -49,6 +65,10 @@ class TrainRequest(BaseModel):
     model_type: str = "churn"
     algorithm: str = "xgboost"
     feature_columns: Optional[List[str]] = None
+    # Whether a high score is bad news (risk) or good news (opportunity). See
+    # OutcomeDirection. Left unset to infer from label_column, since most
+    # callers will not know this vocabulary exists -- but always overridable.
+    outcome_direction: Optional[str] = None
 
 
 class ScoreRequest(BaseModel):
@@ -184,6 +204,14 @@ def train_on_source(
         valid = ", ".join(t.value for t in ModelType)
         raise HTTPException(status_code=400, detail=f"Invalid model_type. Valid: {valid}")
 
+    direction_value = request.outcome_direction or _infer_direction(request.label_column)
+    try:
+        outcome_direction = OutcomeDirection(direction_value)
+    except ValueError:
+        valid = ", ".join(d.value for d in OutcomeDirection)
+        raise HTTPException(status_code=400, detail=f"Invalid outcome_direction. Valid: {valid}")
+    direction_was_inferred = request.outcome_direction is None
+
     rows = _load_rows(db, org_id, request.data_source_id)
     if len(rows) < MIN_ROWS:
         raise HTTPException(
@@ -314,6 +342,7 @@ def train_on_source(
         organization_id=org_id,
         name=request.name or f"{source.name} {model_type.value} model",
         model_type=model_type,
+        outcome_direction=outcome_direction,
         description=f"Trained on {len(rows)} rows from '{source.name}', label '{request.label_column}'",
         status=ModelStatus.ACTIVE,
         algorithm=algo,
@@ -351,6 +380,13 @@ def train_on_source(
     db.commit()
 
     warnings = []
+    if direction_was_inferred:
+        warnings.append(
+            f"Guessed outcome_direction='{outcome_direction.value}' from the column name "
+            f"'{request.label_column}' -- if a HIGH score should mean good news (e.g. "
+            "conversion, renewal), pass outcome_direction='opportunity' explicitly and retrain, "
+            "or the Heatmap and Action Center will treat your best customers as at-risk."
+        )
     if len(rows) < 100:
         warnings.append(
             f"Only {len(rows)} rows: metrics come from a {len(y_test)}-row test set "
@@ -382,6 +418,8 @@ def train_on_source(
             "negatives": int(len(y) - y.sum()),
             "label_column": request.label_column,
             "features": features,
+            "outcome_direction": outcome_direction.value,
+            "outcome_direction_inferred": direction_was_inferred,
         },
         "metrics": {
             "accuracy": round(accuracy, 4),
@@ -447,12 +485,21 @@ def score_with_model(
         Prediction.organization_id == org_id, Prediction.model_id == model.id,
     ).delete()
 
-    def band(score: float) -> str:
-        if score >= 0.75:
+    # band/percentile answer "how urgently does this need attention", which is
+    # the opposite end of the score for an opportunity model: a customer with
+    # a 95% conversion probability is not urgent, one at 5% is. score itself
+    # stays the untouched, literal probability of the label -- only urgency
+    # ranking inverts. Without this, an opportunity model's best customers
+    # were labelled "critical" and handed the same "reach_out_now" action
+    # meant for someone about to churn.
+    is_risk_model = model.outcome_direction != OutcomeDirection.OPPORTUNITY
+
+    def band(urgency: float) -> str:
+        if urgency >= 0.75:
             return "critical"
-        if score >= 0.5:
+        if urgency >= 0.5:
             return "high"
-        if score >= 0.25:
+        if urgency >= 0.25:
             return "medium"
         return "low"
 
@@ -466,12 +513,13 @@ def score_with_model(
     )[:3]
 
     now = utcnow()
-    ranked = sorted(scores, reverse=True)
+    urgencies = [float(x) if is_risk_model else 1.0 - float(x) for x in scores]
+    ranked = sorted(urgencies, reverse=True)
     written = []
-    for cid, score, row in zip(ids, scores, matrix):
+    for cid, score, urgency, row in zip(ids, scores, urgencies, matrix):
         s = float(score)
-        level = band(s)
-        percentile = round(100 * (1 - ranked.index(score) / max(len(ranked), 1)), 1)
+        level = band(urgency)
+        percentile = round(100 * (1 - ranked.index(urgency) / max(len(ranked), 1)), 1)
         prediction = Prediction(
             organization_id=org_id,
             model_id=model.id,

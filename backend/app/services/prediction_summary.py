@@ -18,10 +18,9 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.db.prediction_models import Model, Prediction
+from app.db.prediction_models import Model, OutcomeDirection, Prediction
 from app.services.prediction_sync import (
     ACTIONABLE_BANDS,
-    RISK_MODEL_TYPES,
     _customer_attributes,
     _estimate_impact,
 )
@@ -161,7 +160,7 @@ def summarize_org_predictions(db: Session, org_id: int) -> Optional[PredictionSu
         Prediction.predicted_at == newest.predicted_at,
     ).all()
 
-    is_risk_model = model.model_type in RISK_MODEL_TYPES
+    is_risk_model = model.outcome_direction == OutcomeDirection.RISK
     attributes = _customer_attributes(db, org_id, [r.customer_id for r in rows])
 
     customers: List[ScoredCustomer] = []
