@@ -292,12 +292,12 @@
 
     function trainingPanel() {
       return `<div class="panel"><h3 style="color:#4c5fd7;margin-bottom:6px">Train a model on your data</h3>
-        <div class="subtitle" style="margin-bottom:10px">Pick an uploaded data source and the column recording the outcome you want to predict (e.g. a <code>churned</code> column of yes/no values).</div>
+        <div class="subtitle" style="margin-bottom:10px">Pick an uploaded data source, then the column recording <strong>what you want to predict</strong> &mdash; any yes/no outcome. <code>churned</code>, <code>converted</code>, <code>renewed</code>, <code>defective</code>: whatever your data records as having happened.</div>
         <form class="inline" onsubmit="return trainModel(event)">
           <select id="tr-source" onchange="loadLabelOptions()"><option value="">Loading sources…</option></select>
           <select id="tr-label"><option value="">Select a data source first</option></select>
           <select id="tr-algo">
-            <option value="gradient_boosting">Gradient boosting</option>
+            <option value="xgboost">XGBoost (recommended)</option>
             <option value="random_forest">Random forest</option>
             <option value="logistic_regression">Logistic regression</option>
           </select>
@@ -370,8 +370,12 @@
       }
     }
 
-    async function trainModel(e) {
-      e.preventDefault();
+    // The last successful training call, so "retrain without these" can repeat
+    // it minus the columns the user chose to drop.
+    let lastTraining = null;
+
+    async function trainModel(e, featureColumns) {
+      if (e) e.preventDefault();
       const msg = document.getElementById('tr-msg');
       const out = document.getElementById('tr-result');
       const srcId = document.getElementById('tr-source').value;
@@ -384,17 +388,20 @@
       msg.className = 'form-msg';
       msg.textContent = 'Training…';
       out.innerHTML = '';
-      const res = await post('/api/training/train', {
+      const body = {
         data_source_id: Number(srcId),
         label_column: label,
         algorithm: document.getElementById('tr-algo').value
-      });
+      };
+      if (featureColumns) body.feature_columns = featureColumns;
+      const res = await post('/api/training/train', body);
       if (!res.ok) {
         msg.className = 'form-msg err';
         msg.textContent = typeof res.data.detail === 'string' ? res.data.detail : JSON.stringify(res.data.detail);
         return false;
       }
       const d = res.data;
+      lastTraining = { features: d.trained_on.features };
       msg.className = 'form-msg ok';
       msg.textContent = `Trained "${d.name}" on ${d.trained_on.rows} rows.`;
       const m = d.metrics;
@@ -407,11 +414,55 @@
         '<h4 style="color:#4c5fd7;margin:14px 0 6px">What drives the prediction</h4>' +
         '<dl>' + Object.entries(d.feature_importance).map(([f, i]) =>
           `<dt>${esc(f)}</dt><dd>${(i * 100).toFixed(1)}%</dd>`).join('') + '</dl>' +
-        (d.warnings.length
-          ? '<div class="error" style="margin-top:12px">' + d.warnings.map(esc).join('<br>') + '</div>'
+        leakagePanel(d) +
+        (otherWarnings(d).length
+          ? '<div class="error" style="margin-top:12px">' + otherWarnings(d).map(esc).join('<br>') + '</div>'
           : '');
       initTraining();
       return false;
+    }
+
+    /** Warnings other than leakage, which gets its own panel below. */
+    function otherWarnings(d) {
+      return (d.warnings || []).filter(w => !/label leakage/i.test(w));
+    }
+
+    /**
+     * A near-perfect single feature usually means the column encodes the answer.
+     * Showing it next to a 100% score is the whole point: without this the
+     * result reads as success.
+     */
+    function leakagePanel(d) {
+      const suspects = d.leakage_suspects || [];
+      if (!suspects.length) return '';
+      return '<div class="error" style="margin-top:12px">' +
+        '<strong>These columns predict &ldquo;' + esc(d.trained_on.label_column) +
+        '&rdquo; almost perfectly on their own.</strong><br>' +
+        'That usually means the column is derived from the outcome, or was only ' +
+        'recorded after it was known. If so, the scores above will not hold on new data.' +
+        '<div style="margin-top:8px">' +
+        suspects.map(sus =>
+          '<label style="display:block"><input type="checkbox" class="leak-col" checked value="' +
+          esc(sus.feature) + '"> ' + esc(sus.feature) +
+          ' <span class="subtitle">(alone: ' + (sus.auc_alone * 100).toFixed(1) + '% separation)</span></label>'
+        ).join('') +
+        '</div>' +
+        '<button type="button" style="margin-top:8px" onclick="retrainWithout()">Retrain without the ticked columns</button>' +
+        '</div>';
+    }
+
+    /** Retrain using every feature except the ones the user ticked. */
+    async function retrainWithout() {
+      if (!lastTraining) return;
+      const drop = Array.from(document.querySelectorAll('.leak-col:checked')).map(c => c.value);
+      const keep = lastTraining.features.filter(f => drop.indexOf(f) === -1);
+      if (!keep.length) {
+        const msg = document.getElementById('tr-msg');
+        msg.className = 'form-msg err';
+        msg.textContent = 'That would remove every feature. Leave at least one column ticked off.';
+        return;
+      }
+      await trainModel(null, keep);
     }
 
     async function scoreModel(e) {
