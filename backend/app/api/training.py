@@ -23,6 +23,8 @@ from app.db.prediction_models import (
     Model, ModelArtifact, ModelStatus, ModelType, Prediction, TrainingRun,
 )
 from app.services.auth_service import get_current_user
+from app.services.prediction_sync import sync_from_predictions
+from app.utils.time import utcnow
 
 router = APIRouter(prefix="/api/training", tags=["training"])
 
@@ -220,7 +222,7 @@ def train_on_source(
     raw[inds] = np.take(col_means, inds[1])
     y = np.array(labels)
 
-    started = datetime.utcnow()
+    started = utcnow()
     run = TrainingRun(
         model_id=None, organization_id=org_id, status="running",
         training_start=started, training_records=len(rows),
@@ -296,7 +298,7 @@ def train_on_source(
         })).decode("ascii"),
     ))
 
-    completed = datetime.utcnow()
+    completed = utcnow()
     run.model_id = model.id
     run.status = "completed"
     run.completed_at = completed
@@ -411,14 +413,14 @@ def score_with_model(
         (model.feature_importance or {}).items(), key=lambda kv: -kv[1]
     )[:3]
 
-    now = datetime.utcnow()
+    now = utcnow()
     ranked = sorted(scores, reverse=True)
-    written = 0
+    written = []
     for cid, score, row in zip(ids, scores, matrix):
         s = float(score)
         level = band(s)
         percentile = round(100 * (1 - ranked.index(score) / max(len(ranked), 1)), 1)
-        db.add(Prediction(
+        prediction = Prediction(
             organization_id=org_id,
             model_id=model.id,
             customer_id=cid,
@@ -434,10 +436,15 @@ def score_with_model(
             ],
             features_used={f: row[i] for i, f in enumerate(features)},
             predicted_at=now,
-        ))
-        written += 1
+        )
+        db.add(prediction)
+        written.append(prediction)
 
     db.commit()
+
+    # Predictions on their own only populate the Predictions tab. Fan them out
+    # so the Heatmap and Action Center reflect this scoring run too.
+    fanout = sync_from_predictions(db, org_id, model, written)
 
     dist = {b: sum(1 for s in scores if band(float(s)) == b)
             for b in ("critical", "high", "medium", "low")}
@@ -446,10 +453,11 @@ def score_with_model(
         "success": True,
         "model_id": model.id,
         "model_name": model.name,
-        "customers_scored": written,
+        "customers_scored": len(written),
         "risk_distribution": dist,
         "highest_risk": [
             {"customer_id": c, "score": round(float(s), 4)}
             for c, s in sorted(zip(ids, scores), key=lambda t: -t[1])[:5]
         ],
+        "fanout": fanout,
     }
