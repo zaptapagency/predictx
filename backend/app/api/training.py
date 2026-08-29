@@ -42,7 +42,7 @@ class TrainRequest(BaseModel):
     label_column: str
     name: Optional[str] = None
     model_type: str = "churn"
-    algorithm: str = "gradient_boosting"
+    algorithm: str = "xgboost"
     feature_columns: Optional[List[str]] = None
 
 
@@ -244,8 +244,10 @@ def train_on_source(
     elif algo == "random_forest":
         estimator = RandomForestClassifier(n_estimators=200, random_state=42)
     else:
-        algo = "gradient_boosting"
-        estimator = XGBClassifier(n_estimators=100, random_state=42, use_label_encoder=False, eval_metric="logloss")
+        # Reported name must match what actually trained, so callers and the
+        # stored artifact do not claim an algorithm that never ran.
+        algo = "xgboost"
+        estimator = XGBClassifier(n_estimators=100, random_state=42, eval_metric="logloss")
 
     try:
         estimator.fit(X_train_s, y_train)
