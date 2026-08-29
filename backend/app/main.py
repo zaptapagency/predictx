@@ -12,12 +12,13 @@ from app.utils import setup_logger
 from app.api import saas_auth, saas_subscriptions, saas_api_keys, saas_user, saas_admin, webhooks
 from app.api import (
     actions, activity_feed, adoption, connectors, copilot, csv_upload, demo, heatmap, insights,
-    leaderboard, marketplace, oauth, onboarding, playbook_monitor, predictions,
+    integrations, leaderboard, marketplace, oauth, onboarding, playbook_monitor, predictions,
     predictions_api, quickwins, roi, sample_predictions, team_invitations, training,
     user_home, workflows,
 )
 from app.database import get_db, engine
 from app.db.models_saas import User
+from app.utils.time import utcnow
 
 
 class ManualCORSMiddleware(BaseHTTPMiddleware):
@@ -78,7 +79,8 @@ def run_migrations():
         from app.db.database import Base
         from app.db import (  # noqa: F401 - imported for table registration
             action_models, activity_models, adoption_models, connector_models,
-            copilot_models, heatmap_models, insights_models, leaderboard_models,
+            copilot_models, heatmap_models, insights_models, integration_models,
+            leaderboard_models,
             marketplace_models, onboarding_models, playbook_monitor_models,
             prediction_models, quickwin_models, roi_models, team_models,
             workflow_models,
@@ -157,6 +159,7 @@ def create_app() -> FastAPI:
     app.include_router(copilot.router)
     app.include_router(heatmap.router)
     app.include_router(insights.router)
+    app.include_router(integrations.router)
     app.include_router(leaderboard.router)
     app.include_router(marketplace.router)
     app.include_router(oauth.router)
@@ -215,7 +218,7 @@ def create_app() -> FastAPI:
     # Test CORS endpoint
     @app.get("/test-cors")
     async def test_cors():
-        return {"message": "CORS test", "timestamp": datetime.utcnow().isoformat()}
+        return {"message": "CORS test", "timestamp": utcnow().isoformat()}
 
     # Root endpoint
     @app.get("/")

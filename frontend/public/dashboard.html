@@ -433,8 +433,15 @@
       }
       const d = res.data;
       const r = d.risk_distribution;
+      const f = d.fanout || {};
+      let text = `Scored ${d.customers_scored} customers — ${r.critical} critical, ${r.high} high, ${r.medium} medium, ${r.low} low.`;
+      if (f.actions_created) {
+        text += ` Created ${f.actions_created} actions in Action Center`;
+        if (f.revenue_at_risk) text += ` covering $${Math.round(f.revenue_at_risk).toLocaleString()} of revenue`;
+        text += `, and updated ${f.health_scores_updated} customers on the Heatmap.`;
+      }
       msg.className = 'form-msg ok';
-      msg.textContent = `Scored ${d.customers_scored} customers — ${r.critical} critical, ${r.high} high, ${r.medium} medium, ${r.low} low.`;
+      msg.textContent = text;
       setTimeout(() => loadTab(currentTab), 1200);
       return false;
     }
@@ -519,12 +526,132 @@
       return false;
     }
 
+    async function send(method, path, body) {
+      const r = await fetch(API + path, {
+        method: method,
+        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: body === undefined ? undefined : JSON.stringify(body)
+      });
+      const data = await r.json().catch(() => ({}));
+      return { ok: r.ok, status: r.status, data };
+    }
+
+    // ---- Action Center: a list you can actually act on ----
+    const BANDS = [
+      ['critical', '#d92d20', 'Do now'],
+      ['high', '#e07b00', 'Today'],
+      ['medium', '#b58a00', 'This week'],
+      ['low', '#667085', 'When there is time'],
+    ];
+
+    function renderActions(data) {
+      if (!data || !data.actions_by_priority) return renderData(data);
+      const s = data.stats || {};
+      let h = '<div class="panel"><div class="stat-grid">' +
+        `<div class="stat"><div class="value">${s.total || 0}</div><div class="label">open actions</div></div>` +
+        `<div class="stat"><div class="value">${s.critical || 0}</div><div class="label">critical</div></div>` +
+        `<div class="stat"><div class="value">$${Math.round(s.total_estimated_impact || 0).toLocaleString()}</div><div class="label">revenue at stake</div></div>` +
+        '</div></div>';
+
+      let any = false;
+      for (const [band, color, when] of BANDS) {
+        const items = (data.actions_by_priority[band] || []);
+        if (!items.length) continue;
+        any = true;
+        h += `<div class="panel"><h3 style="color:${color};margin-bottom:4px;text-transform:capitalize">${band} — ${when}</h3>`;
+        for (const a of items) {
+          const impact = a.estimated_impact
+            ? `<span class="badge">$${Math.round(a.estimated_impact).toLocaleString()}</span>` : '';
+          h += `<div style="border-top:1px solid #eaecf0;padding:10px 0;display:flex;gap:12px;align-items:flex-start">
+            <div style="flex:1">
+              <div style="font-weight:600">${esc(a.title)} ${impact}</div>
+              <div class="subtitle">${esc(a.description || '')}</div>
+              <div class="subtitle" style="margin-top:4px">via ${esc(a.action_type)}${a.entity_email ? ' → ' + esc(a.entity_email) : ''}</div>
+            </div>
+            <button onclick="runAction(${a.id}, this)">Execute</button>
+          </div>`;
+        }
+        h += '</div>';
+      }
+      if (!any) h += '<div class="empty">No open actions. Score a model on the Predictions tab to generate some.</div>';
+      h += '<div class="form-msg" id="action-msg"></div>';
+      return h;
+    }
+
+    async function runAction(id, btn) {
+      const msg = document.getElementById('action-msg');
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      const res = await post('/api/actions/execute', { action_id: id });
+      const d = res.data || {};
+      if (d.executed && d.executed.length) {
+        btn.textContent = '✅ Done';
+        msg.className = 'form-msg ok';
+        msg.textContent = d.executed[0].detail || d.message;
+        setTimeout(() => loadTab(currentTab), 1500);
+        return;
+      }
+      // Failure: say why, and point at Integrations when that is the fix.
+      const f = (d.failed && d.failed[0]) || {};
+      btn.disabled = false;
+      btn.textContent = 'Retry';
+      msg.className = 'form-msg err';
+      msg.textContent = (f.error || d.detail || 'Delivery failed.') +
+        (f.needs_setup ? ' Open the Integrations tab to set this up.' : '');
+    }
+
+    // ---- Integrations: where messages actually go ----
+    function renderIntegrations(data) {
+      let h = '';
+      for (const i of (data.integrations || [])) {
+        const state = i.connected
+          ? '<span class="badge" style="background:#dcfae6;color:#067647">connected</span>'
+          : '<span class="badge">not connected</span>';
+        const tested = i.last_test_ok === true ? ' · last test passed'
+          : i.last_test_ok === false ? ' · last test failed: ' + esc(i.last_test_error || '') : '';
+        h += `<div class="panel"><h3 style="color:#4c5fd7;margin-bottom:4px">${esc(i.label)} ${state}</h3>
+          <div class="subtitle">${esc(i.help)}${tested}</div>`;
+        if (i.required_fields && i.required_fields.length) {
+          h += `<form class="inline" style="margin-top:10px" onsubmit="return saveIntegration(event, '${i.channel}', ${JSON.stringify(i.required_fields).replace(/"/g, '&quot;')})">`;
+          for (const f of i.required_fields) {
+            h += `<input type="text" id="int-${i.channel}-${f}" placeholder="${label(f)}" style="min-width:320px" required>`;
+          }
+          h += '<button type="submit">Save</button>';
+          if (i.connected) h += `<button type="button" onclick="testIntegration('${i.channel}')">Send test</button>`;
+          h += '</form>';
+        }
+        h += `<div class="form-msg" id="int-msg-${i.channel}"></div></div>`;
+      }
+      return h;
+    }
+
+    async function saveIntegration(e, channel, fields) {
+      e.preventDefault();
+      const msg = document.getElementById('int-msg-' + channel);
+      const config = {};
+      for (const f of fields) config[f] = document.getElementById(`int-${channel}-${f}`).value.trim();
+      const res = await send('PUT', '/api/integrations', { channel: channel, config: config });
+      msg.className = 'form-msg ' + (res.ok ? 'ok' : 'err');
+      msg.textContent = res.ok ? res.data.message : (res.data.detail || 'Could not save.');
+      if (res.ok) setTimeout(() => loadTab(currentTab), 1200);
+      return false;
+    }
+
+    async function testIntegration(channel) {
+      const msg = document.getElementById('int-msg-' + channel);
+      msg.className = 'form-msg';
+      msg.textContent = 'Sending test…';
+      const res = await post('/api/integrations/' + channel + '/test', {});
+      msg.className = 'form-msg ' + (res.ok ? 'ok' : 'err');
+      msg.textContent = res.ok ? res.data.message : (res.data.detail || 'Test failed.');
+    }
+
     // ---- tab definitions: every feature gets a tab ----
     const TABS = [
       { id: 'home',        icon: '🏠', name: 'Home',          sub: 'Your personalized overview',            path: '/api/user/home' },
       { id: 'onboarding',  icon: '🚀', name: 'Onboarding',    sub: 'Your setup progress',                   path: '/api/onboarding/progress' },
       { id: 'predictions', icon: '🔮', name: 'Predictions',   sub: 'Train models and score your customers', path: '/api/predictions/predictions', extraPaths: ['/api/predictions/models'], widget: trainingPanel, init: initTraining },
-      { id: 'actions',     icon: '⚡', name: 'Action Center', sub: 'Prioritized actions to take now',       path: '/api/actions/dashboard' },
+      { id: 'actions',     icon: '⚡', name: 'Action Center', sub: 'Prioritized actions to take now',       path: '/api/actions/dashboard', render: renderActions },
       { id: 'quickwins',   icon: '🎯', name: 'Quick Wins',    sub: 'One-click high-impact plays',           path: '/api/quick-wins/available' },
       { id: 'playbooks',   icon: '📚', name: 'Playbooks',     sub: 'Automated workflows',                   path: '/api/workflows/', widget: workflowCreateForm },
       { id: 'insights',    icon: '💡', name: 'Insights',      sub: 'What the data is telling you',          path: '/api/insights/feed' },
@@ -536,6 +663,7 @@
       { id: 'adoption',    icon: '📈', name: 'Adoption',      sub: 'Who on the team is getting value',      path: '/api/adoption/team-summary' },
       { id: 'team',        icon: '👥', name: 'Team',          sub: 'Members and invitations',               path: '/api/teams/members', extraPaths: ['/api/teams/pending-invitations'], widget: teamInviteForm },
       { id: 'marketplace', icon: '🛒', name: 'Marketplace',   sub: 'Playbook templates from the community', path: '/api/marketplace/playbooks' },
+      { id: 'integrations',icon: '🔗', name: 'Integrations', sub: 'Where your actions get delivered',      path: '/api/integrations', render: renderIntegrations },
       { id: 'connectors',  icon: '🔌', name: 'Connectors',    sub: 'Upload your data or connect a source',  path: '/api/connectors/csv/customers', extraPaths: ['/api/connectors/connections', '/api/connectors/types'], widget: csvUploadForm },
     ];
 
@@ -564,7 +692,7 @@
         let h = tab.widget ? tab.widget() : '';
         for (const r of results) {
           if (r && r._error) h += '<div class="error">' + esc(r._error) + '</div>';
-          else h += renderData(r);
+          else h += (tab.render ? tab.render(r) : renderData(r));
         }
         el.innerHTML = h;
         if (tab.init) tab.init();

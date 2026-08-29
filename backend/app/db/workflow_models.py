@@ -9,6 +9,7 @@ from datetime import datetime
 import enum
 
 from .database import Base
+from app.utils.time import utcnow
 
 
 class WorkflowTrigger(str, enum.Enum):
@@ -41,6 +42,7 @@ class ExecutionStatus(str, enum.Enum):
     PENDING = "pending"
     RUNNING = "running"
     SUCCESS = "success"
+    PARTIAL = "partial"  # some steps delivered, some did not
     FAILED = "failed"
     SKIPPED = "skipped"
 
@@ -70,8 +72,8 @@ class Workflow(Base):
     actions = relationship("WorkflowAction", back_populates="workflow", cascade="all, delete-orphan")
 
     # Metadata
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
     created_by_id = Column(Integer, ForeignKey("users.id"))
     is_active = Column(Boolean, default=True)
     run_count = Column(Integer, default=0)
@@ -102,7 +104,7 @@ class WorkflowAction(Base):
     condition_expression = Column(Text)  # JS-like expression: data.score > 0.8
 
     # Metadata
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
     is_active = Column(Boolean, default=True)
 
     # Relationships
@@ -132,7 +134,7 @@ class WorkflowExecution(Base):
     execution_results = Column(JSON)  # Results of each action
 
     # Metadata
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
     error_message = Column(Text)
 
 
@@ -158,7 +160,7 @@ class WorkflowActionExecution(Base):
     error_message = Column(Text)
     external_id = Column(String(255))  # ID from external system (email id, Slack ts, SF record id)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 class WorkflowSchedule(Base):
@@ -177,7 +179,7 @@ class WorkflowSchedule(Base):
     next_run_at = Column(DateTime)
 
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 class WorkflowActionTemplate(Base):
@@ -198,5 +200,5 @@ class WorkflowActionTemplate(Base):
     variables = Column(JSON)  # [{name, type, description, default}]
 
     is_public = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
     created_by_id = Column(Integer, ForeignKey("users.id"))
