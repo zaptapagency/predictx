@@ -10,6 +10,7 @@ from app.db.models_saas import (
 )
 from app.utils import setup_logger
 from datetime import datetime
+from app.utils.time import utcnow
 
 logger = setup_logger(__name__)
 
@@ -130,7 +131,7 @@ class BillingService:
                 stripe.Subscription.delete(subscription.stripe_subscription_id)
 
             subscription.status = "canceled"
-            subscription.canceled_at = datetime.utcnow()
+            subscription.canceled_at = utcnow()
             subscription.cancel_at_period_end = False
 
             db.commit()

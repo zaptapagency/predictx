@@ -8,6 +8,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 
 from app.db.database import Base
+from app.utils.time import utcnow
 
 
 class TeamActivity(Base):
@@ -45,7 +46,7 @@ class TeamActivity(Base):
     comment_count = Column(Integer, default=0)
     share_count = Column(Integer, default=0)
 
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
 
     # Relationships
     user = relationship("User")
@@ -68,7 +69,7 @@ class ActivityReaction(Base):
     # Reaction emoji
     emoji = Column(String(10), nullable=False)  # 👏, ❤️, 🔥, etc
 
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
 
     # Relationships
     activity = relationship("TeamActivity")

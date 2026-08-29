@@ -13,6 +13,7 @@ from app.db.models_saas import User
 from app.db.onboarding_models import OnboardingProgress, OnboardingEvent, OnboardingEmailSequence
 from app.db.database import get_db
 from app.services.auth_service import get_current_user
+from app.utils.time import utcnow
 
 router = APIRouter(prefix="/api/onboarding", tags=["onboarding"])
 
@@ -105,12 +106,12 @@ def complete_onboarding_step(
     if step_id not in (progress.completed_steps or []):
         progress.completed_steps = (progress.completed_steps or []) + [step_id]
         progress.current_step += 1
-        progress.updated_at = datetime.utcnow()
+        progress.updated_at = utcnow()
 
         # Check if fully completed
         if len(progress.completed_steps) == 5:
             progress.is_completed = True
-            progress.completed_at = datetime.utcnow()
+            progress.completed_at = utcnow()
 
     db.commit()
 
@@ -150,7 +151,7 @@ def select_goal(
         raise HTTPException(status_code=404, detail="Onboarding progress not found")
 
     progress.selected_goal = request.goal
-    progress.updated_at = datetime.utcnow()
+    progress.updated_at = utcnow()
     db.commit()
 
     # Track event
@@ -186,7 +187,7 @@ def select_template(
         raise HTTPException(status_code=404, detail="Onboarding progress not found")
 
     progress.selected_template = request.template
-    progress.updated_at = datetime.utcnow()
+    progress.updated_at = utcnow()
     db.commit()
 
     # Track event
@@ -221,8 +222,8 @@ def mark_salesforce_connected(
         raise HTTPException(status_code=404, detail="Onboarding progress not found")
 
     progress.salesforce_connected = True
-    progress.connected_at = datetime.utcnow()
-    progress.updated_at = datetime.utcnow()
+    progress.connected_at = utcnow()
+    progress.updated_at = utcnow()
     db.commit()
 
     # Track event
@@ -256,8 +257,8 @@ def mark_first_playbook_created(
         raise HTTPException(status_code=404, detail="Onboarding progress not found")
 
     progress.first_playbook_created = True
-    progress.first_playbook_created_at = datetime.utcnow()
-    progress.updated_at = datetime.utcnow()
+    progress.first_playbook_created_at = utcnow()
+    progress.updated_at = utcnow()
     db.commit()
 
     # Track event
@@ -290,13 +291,13 @@ def mark_first_prediction_seen(
         raise HTTPException(status_code=404, detail="Onboarding progress not found")
 
     progress.first_prediction_seen = True
-    progress.first_prediction_at = datetime.utcnow()
-    progress.updated_at = datetime.utcnow()
+    progress.first_prediction_at = utcnow()
+    progress.updated_at = utcnow()
 
     # Check if all steps complete
     if len(progress.completed_steps or []) == 5:
         progress.is_completed = True
-        progress.completed_at = datetime.utcnow()
+        progress.completed_at = utcnow()
 
     db.commit()
 

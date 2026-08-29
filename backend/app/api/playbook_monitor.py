@@ -12,6 +12,7 @@ from app.db.models_saas import User
 from app.db.playbook_monitor_models import PlaybookPerformance, PlaybookUsageMetric
 from app.db.database import get_db
 from app.services.auth_service import get_current_user
+from app.utils.time import utcnow
 
 router = APIRouter(prefix="/api/playbook-monitor", tags=["playbook-monitor"])
 
@@ -76,7 +77,7 @@ def get_playbook_detail(
         raise HTTPException(status_code=404, detail="Playbook performance data not found")
 
     # Get usage history (last 30 days)
-    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    thirty_days_ago = utcnow() - timedelta(days=30)
     usage_metrics = db.query(PlaybookUsageMetric).filter(
         PlaybookUsageMetric.playbook_id == playbook_id,
         PlaybookUsageMetric.period_date >= thirty_days_ago
@@ -221,7 +222,7 @@ def deprecate_playbook(
         raise HTTPException(status_code=404, detail="Playbook not found")
 
     perf.is_active = False
-    perf.deprecation_date = datetime.utcnow()
+    perf.deprecation_date = utcnow()
 
     db.commit()
 

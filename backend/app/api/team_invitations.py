@@ -14,6 +14,7 @@ from app.db.team_models import TeamMember, TeamInvitation
 from app.services.email_service import EmailService
 from app.db.database import get_db
 from app.services.auth_service import get_current_user
+from app.utils.time import utcnow
 
 router = APIRouter(prefix="/api/teams", tags=["teams"])
 email_service = EmailService()
@@ -81,7 +82,7 @@ def send_team_invitations(
 
         # Create invitation
         invitation_token = str(uuid.uuid4())
-        expires_at = datetime.utcnow() + timedelta(days=7)
+        expires_at = utcnow() + timedelta(days=7)
 
         invitation = TeamInvitation(
             organization_id=organization.id,
@@ -91,7 +92,7 @@ def send_team_invitations(
             role=member.role,
             token=invitation_token,
             expires_at=expires_at,
-            created_at=datetime.utcnow(),
+            created_at=utcnow(),
         )
 
         db.add(invitation)
@@ -137,7 +138,7 @@ def accept_team_invitation(
 
     invitation = db.query(TeamInvitation).filter(
         TeamInvitation.token == token,
-        TeamInvitation.expires_at > datetime.utcnow(),
+        TeamInvitation.expires_at > utcnow(),
         TeamInvitation.accepted_at == None
     ).first()
 
@@ -152,7 +153,7 @@ def accept_team_invitation(
     current_user.organization_id = invitation.organization_id
 
     # Mark invitation as accepted
-    invitation.accepted_at = datetime.utcnow()
+    invitation.accepted_at = utcnow()
 
     # Add as team member
     team_member = TeamMember(
@@ -160,7 +161,7 @@ def accept_team_invitation(
         user_id=current_user.id,
         name=invitation.name,
         role=invitation.role,
-        joined_at=datetime.utcnow(),
+        joined_at=utcnow(),
     )
 
     db.add(team_member)
@@ -227,7 +228,7 @@ def list_pending_invitations(
     pending = db.query(TeamInvitation).filter(
         TeamInvitation.organization_id == current_user.organization_id,
         TeamInvitation.accepted_at == None,
-        TeamInvitation.expires_at > datetime.utcnow()
+        TeamInvitation.expires_at > utcnow()
     ).all()
 
     return {
@@ -332,13 +333,13 @@ def get_team_adoption_metrics(
     active_members = db.query(TeamMember).filter(
         TeamMember.organization_id == current_user.organization_id,
         TeamMember.user != None,  # User exists and accepted invitation
-        TeamMember.last_login > datetime.utcnow() - timedelta(days=7)
+        TeamMember.last_login > utcnow() - timedelta(days=7)
     ).count()
 
     pending_invitations = db.query(TeamInvitation).filter(
         TeamInvitation.organization_id == current_user.organization_id,
         TeamInvitation.accepted_at == None,
-        TeamInvitation.expires_at > datetime.utcnow()
+        TeamInvitation.expires_at > utcnow()
     ).count()
 
     return {

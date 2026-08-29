@@ -11,6 +11,7 @@ from app.services.auth_service import get_current_user as current_user_dep
 from app.services.billing_service import BillingService
 from app.services.email_service import EmailService
 from app.utils import setup_logger
+from app.utils.time import utcnow
 
 logger = setup_logger(__name__)
 router = APIRouter(prefix="/api/subscriptions", tags=["subscriptions"])
@@ -187,7 +188,7 @@ async def get_usage(current_user: User = Depends(current_user_dep), db: Session 
         )
 
         # Get current month usage
-        now = datetime.utcnow()
+        now = utcnow()
         month_start = datetime(now.year, now.month, 1)
         month_end = (
             datetime(now.year, now.month + 1, 1)

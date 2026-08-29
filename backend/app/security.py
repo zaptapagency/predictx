@@ -10,6 +10,7 @@ from sqlalchemy import Column, String, DateTime, Integer, Text
 from datetime import datetime
 import json
 import os
+from app.utils.time import utcnow
 
 # ============================================================================
 # DATA ENCRYPTION (At-Rest)
@@ -53,7 +54,7 @@ class AuditLog(Base):
     user_agent = Column(String)
     request_data = Column(Text)  # JSON of what was requested
     response_status = Column(Integer)  # HTTP status code
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=utcnow)
 
     def __repr__(self):
         return f"<AuditLog {self.action} by user {self.user_id} at {self.timestamp}>"
@@ -87,7 +88,7 @@ def log_audit(
         user_agent=user_agent,
         request_data=json.dumps(request_data) if request_data else None,
         response_status=response_status,
-        timestamp=datetime.utcnow()
+        timestamp=utcnow()
     )
     db.add(audit)
     db.commit()
@@ -231,7 +232,7 @@ def export_user_data(
     return {
         'status': 'success',
         'data': data,
-        'export_date': datetime.utcnow().isoformat()
+        'export_date': utcnow().isoformat()
     }
 
 @router.post("/data/delete")

@@ -18,6 +18,7 @@ from app.db.workflow_models import (
 from app.db.database import get_db
 from app.services.auth_service import get_current_user
 from app.services.workflow_engine import WorkflowEngine
+from app.utils.time import utcnow
 
 router = APIRouter(prefix="/api/workflows", tags=["workflows"])
 
@@ -230,7 +231,7 @@ def update_workflow(
                 )
                 db.add(action)
 
-        workflow.updated_at = datetime.utcnow()
+        workflow.updated_at = utcnow()
         db.commit()
 
         return {"id": workflow.id, "status": "updated"}

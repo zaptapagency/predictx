@@ -13,6 +13,7 @@ from app.db.models_saas import (
 from app.utils import setup_logger
 from app.database import get_db
 from app.services.auth_service import get_current_user as current_user_dep
+from app.utils.time import utcnow
 
 logger = setup_logger(__name__)
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -113,7 +114,7 @@ async def get_user_details(
         )
 
         # Get usage stats (current month)
-        now = datetime.utcnow()
+        now = utcnow()
         month_start = datetime(now.year, now.month, 1)
 
         usage = (
@@ -225,7 +226,7 @@ async def get_platform_analytics(
         ) or 0.0
 
         # This month stats
-        now = datetime.utcnow()
+        now = utcnow()
         month_start = datetime(now.year, now.month, 1)
 
         predictions_this_month = (

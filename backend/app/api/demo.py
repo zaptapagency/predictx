@@ -23,6 +23,7 @@ from app.db.marketplace_models import Playbook
 from app.db.prediction_models import Model, Prediction, ModelType, ModelStatus
 from app.db.quickwin_models import QuickWin
 from app.db.roi_models import ImpactRecord
+from app.utils.time import utcnow
 
 router = APIRouter(prefix="/api/demo", tags=["demo"])
 
@@ -46,7 +47,7 @@ def seed_demo_data(
     """Fill the caller's organization with demo data across every feature."""
     org_id = current_user.organization_id
     uid = current_user.id
-    now = datetime.utcnow()
+    now = utcnow()
     rnd = random.Random(org_id)  # deterministic per org
 
     # Clear previous demo rows for this org so re-seeding doesn't duplicate

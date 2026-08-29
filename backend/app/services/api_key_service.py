@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 import bcrypt
 from app.db.models_saas import APIKey, User
 from app.utils import setup_logger
+from app.utils.time import utcnow
 
 logger = setup_logger(__name__)
 
@@ -54,7 +55,7 @@ class APIKeyService:
             if expires_in_days:
                 from datetime import datetime, timedelta
 
-                api_key.expires_at = datetime.utcnow() + timedelta(days=expires_in_days)
+                api_key.expires_at = utcnow() + timedelta(days=expires_in_days)
 
             db.add(api_key)
             db.commit()
@@ -93,7 +94,7 @@ class APIKeyService:
                 return None
 
             # Check expiration
-            if api_key.expires_at and api_key.expires_at < datetime.utcnow():
+            if api_key.expires_at and api_key.expires_at < utcnow():
                 return None
 
             # Verify secret
@@ -101,7 +102,7 @@ class APIKeyService:
                 return None
 
             # Update last used
-            api_key.last_used_at = datetime.utcnow()
+            api_key.last_used_at = utcnow()
             api_key.usage_count += 1
             db.commit()
 

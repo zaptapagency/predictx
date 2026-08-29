@@ -8,6 +8,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 
 from app.db.database import Base
+from app.utils.time import utcnow
 
 
 class QuickWin(Base):
@@ -44,7 +45,7 @@ class QuickWin(Base):
     is_active = Column(Boolean, default=True)
     order = Column(Integer, default=0)  # Display order
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     # Relationships
     organization = relationship("Organization")
@@ -75,7 +76,7 @@ class QuickWinExecution(Base):
     # Status
     status = Column(String(50), default="pending")  # pending, running, completed, failed
 
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
     completed_at = Column(DateTime, nullable=True)
 
     # Relationships

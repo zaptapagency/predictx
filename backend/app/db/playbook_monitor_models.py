@@ -8,6 +8,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 
 from app.db.database import Base
+from app.utils.time import utcnow
 
 
 class PlaybookPerformance(Base):
@@ -49,7 +50,7 @@ class PlaybookPerformance(Base):
     is_active = Column(Boolean, default=True)
     deprecation_date = Column(DateTime, nullable=True)
 
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, index=True)
 
     # Relationships
     organization = relationship("Organization")
@@ -88,7 +89,7 @@ class PlaybookUsageMetric(Base):
     unique_users = Column(Integer, default=0)
     new_users = Column(Integer, default=0)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     # Relationships
     playbook = relationship("Playbook")

@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.db.models_saas import User, PredictionLog as Prediction, Organization
 from app.services.email_service import EmailService
 from app.db.database import SessionLocal
+from app.utils.time import utcnow
 
 email_service = EmailService()
 
@@ -55,7 +56,7 @@ def send_activation_reminder():
     db = SessionLocal()
     try:
         # Find users who signed up 3 days ago but haven't generated predictions
-        three_days_ago = datetime.utcnow() - timedelta(days=3)
+        three_days_ago = utcnow() - timedelta(days=3)
 
         inactive_users = db.query(User).filter(
             User.created_at >= three_days_ago - timedelta(hours=1),
@@ -99,7 +100,7 @@ def send_daily_risk_alerts():
 
         for user in users:
             # Get latest predictions (last 24 hours)
-            yesterday = datetime.utcnow() - timedelta(days=1)
+            yesterday = utcnow() - timedelta(days=1)
             recent_predictions = db.query(Prediction).filter(
                 Prediction.user_id == user.id,
                 Prediction.created_at >= yesterday,
@@ -148,7 +149,7 @@ def send_weekly_success_email():
 
         for user in users:
             # Get predictions from last 7 days
-            week_ago = datetime.utcnow() - timedelta(days=7)
+            week_ago = utcnow() - timedelta(days=7)
             week_predictions = db.query(Prediction).filter(
                 Prediction.user_id == user.id,
                 Prediction.created_at >= week_ago
@@ -183,7 +184,7 @@ def send_reactivation_email():
     """Send to users who haven't logged in for 7 days"""
     db = SessionLocal()
     try:
-        seven_days_ago = datetime.utcnow() - timedelta(days=7)
+        seven_days_ago = utcnow() - timedelta(days=7)
 
         inactive_users = db.query(User).filter(
             User.is_active == True,
@@ -224,7 +225,7 @@ def send_churn_prevention_email():
 
         for user in users:
             # Calculate churn risk signals
-            days_since_login = (datetime.utcnow() - (user.last_login or user.created_at)).days
+            days_since_login = (utcnow() - (user.last_login or user.created_at)).days
             prediction_count = db.query(Prediction).filter(
                 Prediction.user_id == user.id
             ).count()
