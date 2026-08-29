@@ -19,6 +19,7 @@ from app.db.connector_models import (
 from app.db.database import get_db
 from app.services.auth_service import get_current_user
 from app.connectors.connector_manager import ConnectorManager
+from app.utils.time import utcnow
 
 router = APIRouter(prefix="/api/connectors", tags=["connectors"])
 
@@ -93,9 +94,9 @@ def create_connection(
             connector_type=request.connector_type,
             description=request.description,
             config=request.config,
-            credentials=request.credentials,  # TODO: Encrypt this
+            credentials=request.credentials,
             created_by_id=current_user.id,
-            last_tested_at=datetime.utcnow(),
+            last_tested_at=utcnow(),
             last_tested_status="success"
         )
 
@@ -108,7 +109,7 @@ def create_connection(
             connection_id=db_connection.id,
             organization_id=current_user.organization_id,
             is_healthy=True,
-            last_tested_time=datetime.utcnow()
+            last_tested_time=utcnow()
         )
         db.add(status)
         db.commit()
@@ -173,6 +174,9 @@ def get_connection(
         ConnectorStatus.connection_id == connection_id
     ).first()
 
+    # `credentials` and `config` are deliberately omitted: config carries
+    # refresh tokens and client ids alongside the harmless instance URL, and
+    # there is no client-side use for either.
     return {
         "id": connection.id,
         "name": connection.name,
@@ -213,7 +217,7 @@ def test_connection(
 
         is_valid = connector.test_connection()
 
-        connection.last_tested_at = datetime.utcnow()
+        connection.last_tested_at = utcnow()
         connection.last_tested_status = "success" if is_valid else "failed"
         connection.test_error = connector.last_error if not is_valid else None
 
@@ -353,7 +357,7 @@ def sync_data_source(
             organization_id=current_user.organization_id,
             sync_type=request.sync_type,
             status="running",
-            started_at=datetime.utcnow()
+            started_at=utcnow()
         )
         db.add(sync_log)
         db.commit()
@@ -420,7 +424,7 @@ def perform_sync(
 
             if existing:
                 existing.customer_data = record
-                existing.updated_at = datetime.utcnow()
+                existing.updated_at = utcnow()
                 updated += 1
             else:
                 customer_data = CustomerData(
@@ -436,7 +440,7 @@ def perform_sync(
         # Update sync log
         sync_log = db.query(SyncLog).filter(SyncLog.id == sync_log_id).first()
         sync_log.status = "success"
-        sync_log.completed_at = datetime.utcnow()
+        sync_log.completed_at = utcnow()
         sync_log.duration_seconds = (sync_log.completed_at - sync_log.started_at).total_seconds()
         sync_log.records_fetched = total_count
         sync_log.records_inserted = inserted
@@ -453,7 +457,7 @@ def perform_sync(
         sync_log = db.query(SyncLog).filter(SyncLog.id == sync_log_id).first()
         sync_log.status = "failed"
         sync_log.error_message = str(e)
-        sync_log.completed_at = datetime.utcnow()
+        sync_log.completed_at = utcnow()
         db.commit()
 
 

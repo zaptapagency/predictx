@@ -9,6 +9,8 @@ from datetime import datetime
 import enum
 
 from app.db.database import Base
+from app.services.crypto import EncryptedJSON
+from app.utils.time import utcnow
 
 
 class ConnectorType(str, enum.Enum):
@@ -47,8 +49,9 @@ class DataConnection(Base):
     #   etc
     # }
 
-    # Credentials (stored securely)
-    credentials = Column(JSON, nullable=False)  # encrypted
+    # OAuth tokens / passwords. Encrypted at rest by EncryptedJSON; reads still
+    # yield a plain dict.
+    credentials = Column(EncryptedJSON, nullable=False)
 
     # Connection status
     is_active = Column(Boolean, default=True)
@@ -58,8 +61,8 @@ class DataConnection(Base):
 
     # Metadata
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     organization = relationship("Organization")
@@ -106,8 +109,8 @@ class DataSource(Base):
     is_active = Column(Boolean, default=True)
     record_count = Column(Integer, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     connection = relationship("DataConnection")
@@ -142,7 +145,7 @@ class SyncLog(Base):
     error_details = Column(JSON, nullable=True)
 
     # Performance
-    started_at = Column(DateTime, default=datetime.utcnow)
+    started_at = Column(DateTime, default=utcnow)
     completed_at = Column(DateTime, nullable=True)
     duration_seconds = Column(Integer, nullable=True)
 
@@ -173,8 +176,8 @@ class CustomerData(Base):
     raw_fields = Column(JSON, nullable=False)  # Extracted numeric/categorical fields
 
     # Metadata
-    synced_at = Column(DateTime, default=datetime.utcnow, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    synced_at = Column(DateTime, default=utcnow, index=True)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     organization = relationship("Organization")
@@ -198,7 +201,7 @@ class ConnectorCredential(Base):
     encryption_version = Column(Integer, default=1)
 
     # Rotation tracking
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
     rotated_at = Column(DateTime, nullable=True)
     expires_at = Column(DateTime, nullable=True)  # For tokens that expire
 
@@ -231,8 +234,8 @@ class FieldMapping(Base):
     # Transformation
     transformation = Column(String(255), nullable=True)  # null, lowercase, upper, round, etc
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     data_source = relationship("DataSource")
@@ -270,7 +273,7 @@ class ConnectorStatus(Base):
     api_calls_limit = Column(Integer, nullable=True)
     quota_reset_at = Column(DateTime, nullable=True)
 
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     # Relationships
     connection = relationship("DataConnection")
