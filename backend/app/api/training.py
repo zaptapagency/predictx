@@ -204,11 +204,12 @@ def train_on_source(
         )
 
     import numpy as np
-    from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+    from sklearn.ensemble import RandomForestClassifier
     from sklearn.linear_model import LogisticRegression
     from sklearn.metrics import accuracy_score, precision_score, recall_score, roc_auc_score
     from sklearn.model_selection import train_test_split
     from sklearn.preprocessing import StandardScaler
+    from xgboost import XGBClassifier
 
     # Build the matrix, filling gaps with each column's mean.
     raw = np.array(
@@ -243,7 +244,7 @@ def train_on_source(
         estimator = RandomForestClassifier(n_estimators=200, random_state=42)
     else:
         algo = "gradient_boosting"
-        estimator = GradientBoostingClassifier(random_state=42)
+        estimator = XGBClassifier(n_estimators=100, random_state=42, use_label_encoder=False, eval_metric="logloss")
 
     try:
         estimator.fit(X_train_s, y_train)
