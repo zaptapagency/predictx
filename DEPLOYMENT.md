@@ -1,396 +1,158 @@
-# 🚀 PredictX Deployment Guide
+# Deploying ForecastX
 
-## Quick Start (Local Docker)
+The deployed shape is: **FastAPI backend on Railway**, **static front end on
+Vercel**, **PostgreSQL** as the database. Redis is configured for but not
+required to boot. This merges the previous Railway, Vercel, credentials,
+checklist and monitoring documents into one.
+
+## What gets deployed where
+
+| Piece | Where | Config in repo |
+|---|---|---|
+| Backend (FastAPI) | Railway, Docker build | `railway.json`, root `Dockerfile` |
+| Front end (`frontend/public/`, static) | Vercel | `vercel.json` (`outputDirectory: frontend/public`) |
+| Database | Managed PostgreSQL (Railway plugin or elsewhere) | `DATABASE_URL` |
+
+`railway.json` starts the app with
+`uvicorn app.main:app --host 0.0.0.0 --port $PORT` and health-checks `/health`.
+
+`vercel.json` has `buildCommand: exit 0` — there is no front-end build step; it
+publishes `frontend/public/` (which contains `index.html` and
+`dashboard.html`) as static files.
+
+CI lives in `.github/workflows/`: `test.yml`, `deploy-railway.yml`,
+`deploy-frontend.yml`, `deploy-digitalocean.yml`.
+
+## Environment variables
+
+Declared in `backend/app/config.py`. Anything not listed there is ignored.
+
+### Required
+
+| Variable | Notes |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `JWT_SECRET_KEY` | Signs auth tokens. The default is a placeholder — always override it |
+
+### Strongly recommended in production
+
+| Variable | Notes |
+|---|---|
+| `ENCRYPTION_KEY` | Fernet key for connector credentials and integration configs. When unset, the key is **derived from `JWT_SECRET_KEY`** (see `app/services/crypto.py`) — encryption still happens, but rotating the JWT secret then invalidates stored credentials, and the two secrets share a blast radius. Set this explicitly |
+| `ENVIRONMENT` | `production` |
+| `DEBUG` | `false` |
+| `FRONTEND_URL` | Used in links generated in outbound email |
+
+### Feature-gated (the corresponding feature is unavailable without them)
+
+| Variable | Enables |
+|---|---|
+| `SMTP_SERVER`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` | Email delivery of actions and workflow steps. Without `SMTP_USER`/`SMTP_PASSWORD` the email channel reports itself as not configured rather than silently dropping mail |
+| `STRIPE_API_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRO_PRICE_ID`, `STRIPE_ENTERPRISE_PRICE_ID` | Subscriptions and billing |
+| `REDIS_URL` | Configured; the app boots without it |
+| `SENTRY_DSN` | Error reporting |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_BUCKET_NAME`, `AWS_REGION` | S3, optional |
+| `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` | Google sign-in. Caveat: `app/api/oauth.py` reads `GOOGLE_CLIENT_ID` / `MICROSOFT_CLIENT_ID`, which `config.py` does not declare — verify this path works before depending on it |
+| `LIGHTGBM_REPO_*` | Legacy external-model loading; not used by the current training path |
+
+Slack and outbound webhook destinations are **not** environment variables —
+they are configured per organization at runtime in the Integrations tab and
+stored encrypted in the database.
+
+Never commit real credentials. Set them in the Railway/Vercel dashboards or
+via CLI.
+
+## Backend to Railway
 
 ```bash
-# 1. Copy environment template
-cp .env.example .env
-
-# 2. Edit .env with your credentials
-nano .env
-
-# 3. Start all services with Docker Compose
-docker-compose up -d
-
-# 4. Run database migrations
-docker-compose exec backend alembic upgrade head
-
-# 5. Access the application
-- Frontend: http://localhost:3000
-- Backend: http://localhost:8000
-- API Docs: http://localhost:8000/docs
-```
-
----
-
-## Production Deployment
-
-### Option 1: Railway (Recommended)
-
-#### Backend Deployment
-
-```bash
-# 1. Install Railway CLI
 npm install -g @railway/cli
-
-# 2. Login to Railway
 railway login
-
-# 3. Create new project
 railway init
+railway add            # add the PostgreSQL plugin
 
-# 4. Create PostgreSQL plugin
-railway add postgres
+railway variables set JWT_SECRET_KEY="$(python -c 'import secrets;print(secrets.token_urlsafe(48))')"
+railway variables set ENCRYPTION_KEY="$(python -c 'from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())')"
+railway variables set ENVIRONMENT=production DEBUG=false
+# ...plus SMTP / Stripe / FRONTEND_URL as needed
 
-# 5. Set environment variables
-railway variable set STRIPE_API_KEY=sk_live_...
-railway variable set JWT_SECRET_KEY=your-secret
-railway variable set STRIPE_WEBHOOK_SECRET=whsec_...
-# ... add all other variables
-
-# 6. Deploy backend
 railway up
-
-# 7. Get backend URL
-railway domains
+railway domain          # note the resulting backend URL
 ```
 
-#### Frontend Deployment (Vercel)
+`DATABASE_URL` is injected by the PostgreSQL plugin.
+
+### Schema
+
+There is no separate migration step required for a first deploy. On startup
+`run_migrations()` in `app/main.py` runs `alembic upgrade head` when
+`alembic.ini` is present, then calls `Base.metadata.create_all()` as a fallback
+so any missing tables are created. To run migrations explicitly:
 
 ```bash
-# 1. Install Vercel CLI
-npm i -g vercel
+railway run python -m alembic upgrade head
+```
 
-# 2. Login to Vercel
-vercel login
+## Front end to Vercel
 
-# 3. Deploy frontend
-cd frontend
-vercel
-
-# 4. Set environment variable
-vercel env add REACT_APP_API_URL https://your-railway-backend.railway.app
-
-# 5. Redeploy with env
+```bash
+npm install -g vercel
 vercel --prod
 ```
 
----
+Vercel publishes `frontend/public/`. The dashboard calls the backend directly,
+so the API base URL in `frontend/public/dashboard.html` must point at the
+deployed backend. The backend's CORS middleware currently returns
+`Access-Control-Allow-Origin: *` for all responses, so a new front-end origin
+does not require a backend change — but `CORS_ORIGINS` in `config.py` still
+carries a hardcoded list, so keep it in mind if that middleware is tightened.
 
-### Option 2: DigitalOcean
+## Stripe webhooks
 
-#### Step 1: Create Droplet
+If billing is enabled, point a Stripe webhook endpoint at
+`https://<backend-url>/api/webhooks/stripe` and set `STRIPE_WEBHOOK_SECRET` to
+the signing secret Stripe gives you for that endpoint.
 
-```bash
-# Create Docker droplet (8GB RAM recommended)
-doctl compute droplet create predictx \
-  --image docker-20-04 \
-  --size s-2vcpu-4gb \
-  --region nyc3 \
-  --enable-monitoring
-```
-
-#### Step 2: SSH into Droplet
+## Verifying a deploy
 
 ```bash
-ssh root@your-droplet-ip
+curl https://<backend-url>/health          # {"status":"healthy", ...}
+curl https://<backend-url>/docs            # OpenAPI UI
 ```
 
-#### Step 3: Install Dependencies
+Then walk the actual product loop, which is the only check that matters:
+
+1. Sign up, confirm an organization exists for the new user.
+2. Upload a CSV with a binary outcome column on the Connectors tab.
+3. Train a model on that column from the Predictions tab; confirm the reported
+   metrics are non-trivial and that training on a source *without* a label
+   column is refused.
+4. Score the model; confirm predictions appear.
+5. Confirm the Heatmap and Action Center populate from those predictions.
+6. Configure Slack in Integrations and use the test-message button — it sends a
+   real message.
+7. Execute one action and confirm it was actually delivered. A green tick with
+   nothing received is a bug, not a success.
+
+## Operating it
 
 ```bash
-# Update system
-apt-get update && apt-get upgrade -y
-
-# Install Docker & Docker Compose
-apt-get install -y docker.io docker-compose
-
-# Add current user to docker group
-usermod -aG docker $USER
+railway logs -f                       # follow logs
+railway logs | grep -i error
+railway variables                     # confirm what is actually set
+railway run python -c "from app.database import engine; print(engine.connect())"
 ```
 
-#### Step 4: Deploy Application
-
-```bash
-# Clone repository
-git clone https://github.com/zaptapagency/predictx.git
-cd predictx
-
-# Copy and edit environment
-cp .env.example .env
-nano .env
-
-# Start services
-docker-compose -f docker-compose.yml up -d
-
-# Run migrations
-docker-compose exec backend alembic upgrade head
-```
-
-#### Step 5: Setup Nginx Reverse Proxy
-
-```bash
-# Install Nginx
-apt-get install -y nginx
-
-# Create config
-cat > /etc/nginx/sites-available/predictx << 'NGINX'
-upstream backend {
-    server backend:8000;
-}
-
-upstream frontend {
-    server frontend:3000;
-}
-
-server {
-    listen 80;
-    server_name your-domain.com;
-
-    location /api {
-        proxy_pass http://backend;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-
-    location / {
-        proxy_pass http://frontend;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-NGINX
-
-# Enable site
-ln -s /etc/nginx/sites-available/predictx /etc/nginx/sites-enabled/
-nginx -t
-systemctl restart nginx
-```
-
-#### Step 6: Setup SSL (Let's Encrypt)
-
-```bash
-apt-get install -y certbot python3-certbot-nginx
-
-certbot --nginx -d your-domain.com
-```
-
----
-
-## Environment Variables
-
-### Backend (.env)
-
-```env
-# Database
-DATABASE_URL=postgresql://user:pass@host:5432/predictx
-
-# Redis
-REDIS_URL=redis://host:6379
-
-# JWT
-JWT_SECRET_KEY=your-64-char-random-key
-JWT_ALGORITHM=HS256
-JWT_EXPIRATION_HOURS=24
-
-# SMTP (Gmail)
-SMTP_SERVER=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
-SMTP_PASSWORD=your-16-char-app-password
-
-# Stripe
-STRIPE_API_KEY=sk_live_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-STRIPE_PRO_PRICE_ID=price_...
-STRIPE_ENTERPRISE_PRICE_ID=price_...
-
-# URLs
-FRONTEND_URL=https://predictx.com
-
-# LightGBM
-LIGHTGBM_REPO_URL=https://github.com/...
-LIGHTGBM_REPO_BRANCH=main
-
-# Environment
-ENVIRONMENT=production
-DEBUG=false
-LOG_LEVEL=INFO
-```
-
-### Frontend (.env)
-
-```env
-REACT_APP_API_URL=https://api.predictx.com
-```
-
----
-
-## Database Setup
-
-### PostgreSQL
-
-```bash
-# Connect to database
-psql postgresql://user:pass@host:5432/predictx
-
-# Run migrations
-alembic upgrade head
-
-# Verify tables
-\dt
-```
-
-### Redis
-
-```bash
-# Check Redis connection
-redis-cli ping
-# Expected: PONG
-```
-
----
-
-## Stripe Webhook Setup
-
-1. Go to Stripe Dashboard
-2. Settings → Webhooks
-3. Add endpoint: `https://your-domain.com/api/webhooks/stripe`
-4. Select events:
-   - `customer.subscription.created`
-   - `customer.subscription.updated`
-   - `customer.subscription.deleted`
-   - `invoice.payment_succeeded`
-   - `invoice.payment_failed`
-   - `charge.refunded`
-5. Copy webhook secret to `STRIPE_WEBHOOK_SECRET`
-
----
-
-## Email Service Setup (Gmail)
-
-1. Enable 2FA in Google Account
-2. Generate app password:
-   - Account → Security → App passwords
-   - Select Mail and Windows Computer
-   - Copy 16-char password to `SMTP_PASSWORD`
-
----
-
-## Monitoring & Logging
-
-### Docker Logs
-
-```bash
-# Backend logs
-docker-compose logs -f backend
-
-# Frontend logs
-docker-compose logs -f frontend
-
-# Database logs
-docker-compose logs -f postgres
-```
-
-### Health Checks
-
-```bash
-# Backend health
-curl http://localhost:8000/health
-
-# API docs
-curl http://localhost:8000/docs
-```
-
----
-
-## Scaling
-
-### Increase Resources
-
-```bash
-# Railway
-railway variable set RAILWAY_MEMORY=2GB
-
-# DigitalOcean
-doctl compute droplet resize predictx --size s-4vcpu-8gb
-```
-
-### Database Backups
-
-```bash
-# PostgreSQL backup
-pg_dump postgresql://user:pass@host/predictx > backup.sql
-
-# Restore backup
-psql postgresql://user:pass@host/predictx < backup.sql
-```
-
----
-
-## Troubleshooting
-
-### Backend Connection Error
-```bash
-# Check if backend is running
-curl http://localhost:8000/health
-
-# Check logs
-docker-compose logs backend
-```
-
-### Database Connection Error
-```bash
-# Check PostgreSQL
-docker-compose exec postgres psql -U predictx -d predictx -c "SELECT 1"
-```
-
-### Frontend Not Loading
-```bash
-# Clear cache and restart
-docker-compose restart frontend
-```
-
-### Stripe Webhook Issues
-```bash
-# Check webhook logs in Stripe Dashboard
-# Test webhook: curl -X POST http://localhost:8000/api/webhooks/stripe \
-#   -H "Content-Type: application/json" \
-#   -d '{"type": "customer.subscription.created"}'
-```
-
----
-
-## Performance Optimization
-
-1. **Enable caching** - Use Redis for session storage
-2. **Database indexing** - Already included in migrations
-3. **CDN** - Put frontend behind CloudFlare CDN
-4. **Compression** - Enable gzip in Nginx
-5. **Rate limiting** - Enabled on all endpoints
-
----
-
-## Security Checklist
-
-- [x] HTTPS enforced
-- [x] CORS configured
-- [x] Rate limiting enabled
-- [x] Input validation
-- [x] SQL injection prevention (ORM)
-- [x] XSS prevention
-- [x] Password hashing (bcrypt)
-- [x] API key hashing
-- [x] Webhook verification
-- [ ] WAF configured
-- [ ] DDoS protection
-- [ ] Regular backups scheduled
-
----
-
-## Support
-
-- API Docs: `https://your-domain.com/docs`
-- GitHub: https://github.com/zaptapagency/predictx
-- Email: support@predictx.com
-
+Common failures:
+
+| Symptom | First thing to check |
+|---|---|
+| Backend won't boot | `DATABASE_URL` reachable; `run_migrations()` re-raises on schema failure, so the traceback is in the logs |
+| A new table is missing | Its model module must be imported inside `run_migrations()` in `app/main.py`, and registered on the `Base` in `app/db/database.py` |
+| Email actions fail as "not configured" | `SMTP_USER` / `SMTP_PASSWORD` unset. For Gmail this must be an app password |
+| Slack actions fail | The org has no Slack webhook saved in Integrations, or the webhook was revoked. Use the test endpoint to isolate |
+| Salesforce action fails | Expected until it has been proven against a live org — this path has never been tested end to end |
+| Stored connector credentials suddenly unreadable | `ENCRYPTION_KEY` or (when it is unset) `JWT_SECRET_KEY` changed |
+| Payments not recording | Check the Stripe dashboard's webhook delivery log, then `railway logs \| grep webhook` |
+
+Take database backups from the Railway PostgreSQL plugin, and treat the
+prediction and action tables as the data you cannot regenerate.
