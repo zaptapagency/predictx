@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRATION_HOURS: int = 24
 
+    # Credential encryption (connector credentials, integration configs).
+    # Unset means the key is derived from JWT_SECRET_KEY rather than encryption
+    # being skipped -- see app/services/crypto.py for the tradeoff.
+    ENCRYPTION_KEY: str = ""
+
     # CORS
     CORS_ORIGINS: List[str] = [
         "http://localhost:3000",
@@ -62,6 +67,11 @@ class Settings(BaseSettings):
     # Google OAuth (Optional)
     GOOGLE_OAUTH_CLIENT_ID: str = ""
     GOOGLE_OAUTH_CLIENT_SECRET: str = ""
+
+    # Microsoft OAuth (Optional). These were read by app/api/oauth.py but never
+    # declared here, so every Microsoft sign-in raised AttributeError.
+    MICROSOFT_CLIENT_ID: str = ""
+    MICROSOFT_CLIENT_SECRET: str = ""
 
     # Email (Optional)
     SMTP_SERVER: str = "smtp.gmail.com"
