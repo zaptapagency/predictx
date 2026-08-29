@@ -31,6 +31,11 @@ router = APIRouter(prefix="/api/training", tags=["training"])
 MIN_ROWS = 20
 TEST_SIZE = 0.25
 
+# A single feature that alone separates the outcome this well is almost
+# always leakage -- a column derived from the answer, or recorded after it
+# was known. Real predictors are rarely this good on their own.
+LEAKAGE_AUC = 0.98
+
 # Values accepted as a positive/negative label, so a CSV can say
 # "yes"/"true"/1 without the user having to normalise it first.
 TRUTHY = {"1", "true", "yes", "y", "churned", "churn", "lost"}
@@ -67,6 +72,38 @@ def _to_label(value: Any) -> Optional[int]:
     if s in FALSEY:
         return 0
     return None
+
+
+def _leakage_suspects(raw, y, features, roc_auc_score):
+    """
+    Features that predict the outcome almost perfectly on their own.
+
+    A user picks their own label column here, so nothing stops them choosing a
+    label and leaving a column that encodes it -- "profitable" alongside the
+    revenue it was computed from, "churned" alongside a cancellation date. The
+    model then scores near 1.0 in training and is worthless in production,
+    which is worse than an obviously bad model because it looks trustworthy.
+
+    Reported, not blocked: a genuinely dominant predictor is possible, and
+    that judgement belongs to whoever knows what the columns mean.
+    """
+    import numpy as np
+
+    suspects = []
+    for i, name in enumerate(features):
+        column = raw[:, i]
+        if np.all(column == column[0]):
+            continue  # constant column carries no signal to leak
+        try:
+            auc = roc_auc_score(y, column)
+        except ValueError:
+            continue
+        # A perfectly inverted predictor leaks just as much as a direct one.
+        separation = max(auc, 1.0 - auc)
+        if separation >= LEAKAGE_AUC:
+            suspects.append({"feature": name, "auc_alone": round(float(separation), 4)})
+
+    return sorted(suspects, key=lambda s: -s["auc_alone"])
 
 
 def _load_rows(db: Session, org_id: int, source_id: int) -> List[Dict[str, Any]]:
@@ -322,6 +359,16 @@ def train_on_source(
     if min(int(np.bincount(y)[0]), int(np.bincount(y)[1])) < 5:
         warnings.append("One outcome class has fewer than 5 examples; the model will be biased toward the majority.")
 
+    leakage = _leakage_suspects(raw, y, features, roc_auc_score)
+    if leakage:
+        names = ", ".join(f"'{s['feature']}'" for s in leakage)
+        warnings.append(
+            f"Possible label leakage: {names} predict '{request.label_column}' "
+            "almost perfectly alone. If any of these is derived from the outcome, "
+            "or recorded only after it was known, drop it from feature_columns and "
+            "retrain -- otherwise these scores will not hold on new data."
+        )
+
     return {
         "success": True,
         "model_id": model.id,
@@ -344,6 +391,7 @@ def train_on_source(
             "measured_on": "held-out test split",
         },
         "feature_importance": dict(sorted(importance.items(), key=lambda kv: -kv[1])),
+        "leakage_suspects": leakage,
         "warnings": warnings,
     }
 
